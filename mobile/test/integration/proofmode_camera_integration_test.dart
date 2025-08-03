@@ -91,8 +91,8 @@ void main() {
         expect(result.hasProof, isTrue);
         expect(result.proofLevel, isNotNull);
         expect(result.proofManifest, isNotNull);
-        expect(result.proofManifest!.interactions.length, greaterThanOrEqualTo(2));
-        expect(result.proofManifest!.pgpSignature, isNotNull);
+        expect(result.proofManifest!['interactions']?.length ?? 0, greaterThanOrEqualTo(2));
+        expect(result.proofManifest!['pgpSignature'], isNotNull);
         expect(integration.hasActiveProofSession, isFalse);
       });
 
@@ -161,8 +161,8 @@ void main() {
         final result = await integration.stopRecording();
 
         expect(result.hasProof, isTrue);
-        expect(result.proofManifest!.segments.length, greaterThanOrEqualTo(3));
-        expect(result.proofManifest!.interactions.length, greaterThanOrEqualTo(3));
+        expect(result.proofManifest!['segments']?.length ?? 0, greaterThanOrEqualTo(3));
+        expect(result.proofManifest!['interactions']?.length ?? 0, greaterThanOrEqualTo(3));
       });
     });
 
@@ -361,11 +361,12 @@ void main() {
         final result = await integration.stopRecording();
 
         expect(result.hasProof, isTrue);
-        expect(result.proofManifest!.interactions.length, greaterThanOrEqualTo(4));
+        expect(result.proofManifest!['interactions']?.length ?? 0, greaterThanOrEqualTo(4));
         
         // Verify interactions have natural variation
-        final coords = result.proofManifest!.interactions
-            .map((i) => i.coordinates)
+        final interactions = result.proofManifest!['interactions'] as List<dynamic>? ?? [];
+        final coords = interactions
+            .map((i) => i['coordinates'] as Map<String, dynamic>)
             .toList();
         
         final xValues = coords.map((c) => c['x']!).toList();
@@ -399,8 +400,9 @@ void main() {
         expect(result.hasProof, isTrue);
         
         // Verify that human detection would flag this as suspicious
+        final interactions = result.proofManifest!['interactions'] as List<dynamic>? ?? [];
         final analysis = ProofModeHumanDetection.analyzeInteractions(
-          result.proofManifest!.interactions
+          interactions
         );
         
         expect(analysis.isHumanLikely, isFalse);

@@ -127,7 +127,7 @@ void main() {
         // Debug information
         Log.debug('🔍 Debug info:', name: 'VideoPipelineTest', category: LogCategory.system);
         Log.debug('  - VideoEventService isSubscribed: ${videoEventService.isSubscribed}', name: 'VideoPipelineTest', category: LogCategory.system);
-        Log.debug('  - VideoEventService eventCount: ${videoEventService.eventCount}', name: 'VideoPipelineTest', category: LogCategory.system);
+        Log.debug('  - VideoEventService discovery events: ${videoEventService.getEventCount(SubscriptionType.discovery)}', name: 'VideoPipelineTest', category: LogCategory.system);
         Log.debug('  - VideoEventService hasEvents: ${videoEventService.hasEvents}', name: 'VideoPipelineTest', category: LogCategory.system);
         Log.debug('  - SubscriptionManager exists: true', name: 'VideoPipelineTest', category: LogCategory.system);
         
@@ -189,7 +189,7 @@ void main() {
       } catch (e) {
         Log.error('❌ Direct test failed: $e', name: 'VideoPipelineTest', category: LogCategory.system);
         Log.debug('  - VideoEventService isSubscribed: ${videoEventService.isSubscribed}', name: 'VideoPipelineTest', category: LogCategory.system);
-        Log.debug('  - VideoEventService eventCount: ${videoEventService.eventCount}', name: 'VideoPipelineTest', category: LogCategory.system);
+        Log.debug('  - VideoEventService discovery events: ${videoEventService.getEventCount(SubscriptionType.discovery)}', name: 'VideoPipelineTest', category: LogCategory.system);
         rethrow;
       } finally {
         eventPollingTimer?.cancel();

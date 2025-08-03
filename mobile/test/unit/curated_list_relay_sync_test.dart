@@ -236,31 +236,31 @@ void main() {
       when(freshMockAuthService.isAuthenticated).thenReturn(true);
       when(freshMockAuthService.currentPublicKeyHex).thenReturn('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
       
-      // Create local list first
-      await freshService.initialize();
-      await freshService.createList(
+      // Create local list without initializing (to avoid initial relay sync)
+      final createdList = await freshService.createList(
         name: 'Local List',
         description: 'Local description',
         isPublic: false,
       );
       
-      // Manually update the internal list to match what we'll receive from relay
-      freshService.updateList(
-        listId: 'test_list_id',
-        name: 'Local List',
-      );
+      // Get the actual ID from the created list
+      final actualListId = createdList!.id;
       
-      // Create newer relay event
+      // Get current timestamp and make relay event newer
+      final currentTimestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final futureTimestamp = currentTimestamp + 1000; // 1000 seconds in the future
+      
+      // Create newer relay event using the actual list ID
       final relayEvent = Event(
         '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
         30005,
         [
-          ['d', 'test_list_id'],
+          ['d', actualListId], // Use the actual list ID instead of hardcoded 'test_list_id'
           ['title', 'Relay List'],
           ['description', 'Relay description'],
         ],
         'Relay version',
-        createdAt: 2000, // newer timestamp
+        createdAt: futureTimestamp, // Ensure this is newer than the local list
       );
       
       // Mock subscription
@@ -275,7 +275,7 @@ void main() {
       await future;
       
       // Verify: Local list was updated with relay version
-      final syncedList = freshService.getListById('test_list_id');
+      final syncedList = freshService.getListById(actualListId);
       expect(syncedList, isNotNull);
       expect(syncedList!.name, 'Relay List');
       expect(syncedList.description, 'Relay description');

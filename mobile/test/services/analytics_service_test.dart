@@ -61,6 +61,9 @@ void main() {
       await analyticsService.trackVideoView(video);
       await analyticsService.trackVideoView(video);
       await analyticsService.trackVideoView(video);
+      
+      // Wait for async fire-and-forget requests to complete
+      await Future.delayed(Duration(milliseconds: 100));
 
       // Assert - All 3 views should be tracked
       expect(requestCount, equals(3));
@@ -144,6 +147,9 @@ void main() {
       final futures =
           List.generate(5, (_) => analyticsService.trackVideoView(video));
       await Future.wait(futures);
+      
+      // Wait for async fire-and-forget requests to complete
+      await Future.delayed(Duration(milliseconds: 200));
 
       // Assert - All views should be tracked
       expect(requestCount, equals(5));

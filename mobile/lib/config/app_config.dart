@@ -43,15 +43,7 @@ class AppConfig {
   static const String appName = 'OpenVines';
   static const String appVersion = '1.0.0';
 
-  // Nostr configuration
-  static const List<String> defaultNostrRelays = [
-    'wss://relay.damus.io',
-  ];
-
-  // Test relay configuration for integration testing
-  static const List<String> testNostrRelays = [
-    'wss://relay1.openvine.co',  // Use relay1.openvine.co for real integration testing
-  ];
+  // External relay configuration DELETED - using embedded relay only
 
   // Debugging
   static bool get enableDebugLogs => isDevelopment;
@@ -94,7 +86,7 @@ class AppConfig {
         'enableStreamCDN': enableStreamCDN,
         'enableCloudinaryUpload': enableCloudinaryUpload,
         'enableNIP96Upload': enableNIP96Upload,
-        'relayCount': defaultNostrRelays.length,
+        // External relay configuration DELETED
         // Multi-agent development flags
         'enableCameraOptimizations': enableCameraOptimizations,
         'enableVideoProcessingPipeline': enableVideoProcessingPipeline,

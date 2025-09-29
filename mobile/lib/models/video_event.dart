@@ -349,23 +349,8 @@ class VideoEvent {
       }
     }
 
-    // Classic Vine hardening: if platform is vine, force known-good API host
-    if ((tags['platform'] == 'vine' || hashtags.contains('vine')) &&
-        (videoUrl == null || videoUrl.isEmpty || videoUrl!.contains('cdn.divine.video'))) {
-      if (sha256 != null && sha256!.isNotEmpty) {
-        final forced = 'https://api.openvine.co/media/$sha256';
-        developer.log('🎯 PLATFORM=vine: forcing API URL $forced', name: 'VideoEvent');
-        videoUrl = forced;
-      } else if (videoUrl != null && videoUrl!.contains('cdn.divine.video')) {
-        final hashMatch = RegExp(r'cdn\.divine\.video/([a-f0-9]+)').firstMatch(videoUrl!);
-        final hash = hashMatch?.group(1);
-        if (hash != null && hash.isNotEmpty) {
-          final forced = 'https://api.openvine.co/media/$hash';
-          developer.log('🎯 PLATFORM=vine: deriving API URL $forced from cdn URL', name: 'VideoEvent');
-          videoUrl = forced;
-        }
-      }
-    }
+    // Note: Removed Classic Vine hardening that was forcing api.openvine.co URLs
+    // The URL selection logic above now properly handles cdn.divine.video URLs from imeta tags
 
     // If we still have a broken apt.openvine.co URL (shouldn't happen now), fix it
     if (videoUrl?.contains('apt.openvine.co') == true) {

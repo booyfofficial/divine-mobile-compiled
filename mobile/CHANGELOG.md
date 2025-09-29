@@ -5,7 +5,35 @@ All notable changes to the OpenVine mobile application will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2025-09-12
+## [Unreleased] - 2025-09-29
+
+### Fixed
+- **Video Loading Issues**: Fixed critical video loading failures by correcting URL routing
+  - Removed hardcoded URL forcing logic that was overriding correct cdn.divine.video URLs
+  - Videos now properly use URLs from Nostr event imeta tags instead of broken api.openvine.co endpoints
+  - Supports any video server (nostr.build, self-hosted, etc.) without hardcoding domain restrictions
+  - Videos now load and cache successfully from cdn.divine.video CDN
+- **Video Overlay Positioning**: Fixed video metadata overlay overlapping with bottom navigation
+  - Adjusted video overlay positioning from `bottom: 0` to `bottom: 80` to clear navigation bar
+  - Video titles, author info, and action buttons now display properly above bottom navigation
+  - Improved visual hierarchy and readability of video metadata
+- **VideoFeedItem Architecture**: Updated video feed item to use modern individual controller architecture
+  - Replaced old video manager system with individual video provider pattern
+  - Each video now gets its own controller with automatic lifecycle management via Riverpod autoDispose
+  - Fixed interface compatibility issues (updated constructor to use `index` instead of `isActive`)
+  - Improved video state management and memory efficiency
+- **Test Suite Compatibility**: Resolved 40+ analyzer errors from architectural changes
+  - Updated imports and provider references to match new individual video architecture
+  - Fixed interface mismatches across test files and widget implementations
+  - Ensured consistent API usage throughout the codebase
+
+### Technical Improvements
+- Enhanced video URL selection logic to respect Nostr event specifications
+- Improved error handling and logging for video loading diagnostics
+- Better separation of concerns between video controllers and UI components
+- More robust handling of different video URL formats and servers
+
+## [Previous] - 2025-09-12
 
 ### Added
 - **Multi-Account Support Planning**: Comprehensive implementation plan for multiple Nostr accounts

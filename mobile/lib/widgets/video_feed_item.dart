@@ -225,7 +225,7 @@ class VideoOverlayActions extends ConsumerWidget {
             final display = profileAsync.maybeWhen(
                   data: (p) => p?.bestDisplayName ?? p?.displayName ?? p?.name,
                   orElse: () => null,
-                ) ?? 'npub:${video.pubkey.substring(0, 8)}';
+                ) ?? 'npub:${video.pubkey.length > 8 ? video.pubkey.substring(0, 8) : video.pubkey}';
 
             return GestureDetector(
               onTap: () {

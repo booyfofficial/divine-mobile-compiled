@@ -353,7 +353,7 @@ final activeVideoProvider = StateNotifierProvider<ActiveVideoNotifier, String?>(
 bool isVideoActive(Ref ref, String videoId) {
   final activeVideoId = ref.watch(activeVideoProvider);
   final isActive = activeVideoId == videoId;
-  Log.debug('🔍 isVideoActive: videoId=${videoId.length > 8 ? videoId.substring(0, 8) : videoId}..., activeVideoId=${activeVideoId?.substring(0, 8) ?? 'null'}, isActive=$isActive',
+  Log.debug('🔍 isVideoActive: videoId=${videoId.length > 8 ? videoId.substring(0, 8) : videoId}..., activeVideoId=${activeVideoId != null && activeVideoId.length > 8 ? activeVideoId.substring(0, 8) : activeVideoId ?? 'null'}, isActive=$isActive',
       name: 'IsVideoActive', category: LogCategory.system);
   return isActive;
 }

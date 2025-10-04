@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Home Feed Empty State (2025-10-04)
+
+#### Bug Fixes
+- **Fixed home feed showing empty state despite following users with videos** - Resolved provider disposal race condition
+  - Changed `socialProvider` from `keepAlive: false` to `keepAlive: true`
+  - Provider was being disposed during async initialization (fetching contact list and reactions)
+  - Home feed now correctly receives following list (14 users) and loads their videos (33 videos loaded)
+  - Social state (following list, likes, reposts) now persists in memory as app-wide state
+
+#### Root Cause
+- `socialProvider` used `@Riverpod(keepAlive: false)` which caused auto-disposal when not actively watched
+- `homeFeedProvider` reads it with `ref.read()` which doesn't keep the provider alive
+- During async operations (`fetchCurrentUserFollowList()`, `fetchAllUserReactions()`), provider would dispose
+- Result: Following list never populated, home feed incorrectly showed "Your Feed, Your Choice" empty state
+
+#### Technical Details
+- Modified `lib/providers/social_providers.dart`:
+  - Line 20: Changed `@Riverpod(keepAlive: false)` to `@Riverpod(keepAlive: true)`
+  - Updated comment to reflect disposal prevention and state caching
+- Regenerated `lib/providers/social_providers.g.dart`:
+  - Line 29: `isAutoDispose: false` (previously `true`)
+- Provider still receives updates via state mutations and `ref.invalidate()`
+- `keepAlive: true` only prevents disposal, doesn't affect reactivity
+
 ### Fixed - Video Controller Memory Management (2025-10-03)
 
 #### Bug Fixes

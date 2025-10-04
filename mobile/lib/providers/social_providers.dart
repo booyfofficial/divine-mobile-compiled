@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 part 'social_providers.g.dart';
 
 /// Social state notifier with reactive state management
+/// keepAlive: true prevents disposal during async initialization and keeps following list cached
 @Riverpod(keepAlive: true)
 class SocialNotifier extends _$SocialNotifier {
   // Managed subscription IDs
@@ -197,6 +198,13 @@ class SocialNotifier extends _$SocialNotifier {
         // Add like
         final reactionEventId = await _publishLike(eventId, authorPubkey);
 
+        // Check if provider was disposed during async operation
+        if (!ref.mounted) {
+          Log.warning('Provider disposed during like operation - aborting',
+              name: 'SocialNotifier', category: LogCategory.system);
+          return;
+        }
+
         // Update state - likeCounts tracks only NEW likes from Nostr
         state = state.copyWith(
           likedEventIds: {...state.likedEventIds, eventId},
@@ -217,6 +225,13 @@ class SocialNotifier extends _$SocialNotifier {
         final reactionEventId = state.likeEventIdToReactionId[eventId];
         if (reactionEventId != null) {
           await _publishUnlike(reactionEventId);
+
+          // Check if provider was disposed during async operation
+          if (!ref.mounted) {
+            Log.warning('Provider disposed during unlike operation - aborting',
+                name: 'SocialNotifier', category: LogCategory.system);
+            return;
+          }
 
           // Update state
           final newLikedEventIds = {...state.likedEventIds}..remove(eventId);
@@ -256,11 +271,19 @@ class SocialNotifier extends _$SocialNotifier {
       }
 
       // Remove from in-progress set on success
-      final newLikesInProgress = {...state.likesInProgress}..remove(eventId);
-      state = state.copyWith(likesInProgress: newLikesInProgress);
+      if (ref.mounted) {
+        final newLikesInProgress = {...state.likesInProgress}..remove(eventId);
+        state = state.copyWith(likesInProgress: newLikesInProgress);
+      }
     } catch (e) {
       Log.error('Error toggling like: $e',
           name: 'SocialNotifier', category: LogCategory.system);
+      // Check if provider was disposed during error handling
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during like error handling - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
       // Remove from in-progress set before updating error
       final newLikesInProgress = {...state.likesInProgress}..remove(eventId);
       state = state.copyWith(
@@ -304,6 +327,13 @@ class SocialNotifier extends _$SocialNotifier {
       // Publish updated contact list
       await _publishContactList(newFollowingList);
 
+      // Check if provider was disposed during async operation
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during follow operation - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
+
       // Update state
       state = state.copyWith(followingPubkeys: newFollowingList);
 
@@ -318,13 +348,22 @@ class SocialNotifier extends _$SocialNotifier {
     } catch (e) {
       Log.error('Error following user: $e',
           name: 'SocialNotifier', category: LogCategory.system);
+      // Check if provider was disposed during error handling
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during follow error handling - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
       state = state.copyWith(error: e.toString());
       rethrow;
     } finally {
-      // Remove from in-progress set
-      final newFollowsInProgress = {...state.followsInProgress}
-        ..remove(pubkeyToFollow);
-      state = state.copyWith(followsInProgress: newFollowsInProgress);
+      // Check if provider was disposed before cleanup
+      if (ref.mounted) {
+        // Remove from in-progress set
+        final newFollowsInProgress = {...state.followsInProgress}
+          ..remove(pubkeyToFollow);
+        state = state.copyWith(followsInProgress: newFollowsInProgress);
+      }
     }
   }
 
@@ -362,6 +401,13 @@ class SocialNotifier extends _$SocialNotifier {
       // Publish updated contact list
       await _publishContactList(newFollowingList);
 
+      // Check if provider was disposed during async operation
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during unfollow operation - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
+
       // Update state
       state = state.copyWith(followingPubkeys: newFollowingList);
 
@@ -376,13 +422,22 @@ class SocialNotifier extends _$SocialNotifier {
     } catch (e) {
       Log.error('Error unfollowing user: $e',
           name: 'SocialNotifier', category: LogCategory.system);
+      // Check if provider was disposed during error handling
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during unfollow error handling - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
       state = state.copyWith(error: e.toString());
       rethrow;
     } finally {
-      // Remove from in-progress set
-      final newFollowsInProgress = {...state.followsInProgress}
-        ..remove(pubkeyToUnfollow);
-      state = state.copyWith(followsInProgress: newFollowsInProgress);
+      // Check if provider was disposed before cleanup
+      if (ref.mounted) {
+        // Remove from in-progress set
+        final newFollowsInProgress = {...state.followsInProgress}
+          ..remove(pubkeyToUnfollow);
+        state = state.copyWith(followsInProgress: newFollowsInProgress);
+      }
     }
   }
 
@@ -419,6 +474,13 @@ class SocialNotifier extends _$SocialNotifier {
       // Publish repost event (Kind 6)
       final repostEventId = await _publishRepost(eventToRepost);
 
+      // Check if provider was disposed during async operation
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during repost operation - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
+
       // Update state
       state = state.copyWith(
         repostedEventIds: {...state.repostedEventIds, eventId},
@@ -433,13 +495,22 @@ class SocialNotifier extends _$SocialNotifier {
     } catch (e) {
       Log.error('Error reposting event: $e',
           name: 'SocialNotifier', category: LogCategory.system);
+      // Check if provider was disposed during error handling
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during repost error handling - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
       state = state.copyWith(error: e.toString());
       rethrow;
     } finally {
-      // Remove from in-progress set
-      final newRepostsInProgress = {...state.repostsInProgress}
-        ..remove(eventId);
-      state = state.copyWith(repostsInProgress: newRepostsInProgress);
+      // Check if provider was disposed before cleanup
+      if (ref.mounted) {
+        // Remove from in-progress set
+        final newRepostsInProgress = {...state.repostsInProgress}
+          ..remove(eventId);
+        state = state.copyWith(repostsInProgress: newRepostsInProgress);
+      }
     }
   }
 
@@ -528,6 +599,14 @@ class SocialNotifier extends _$SocialNotifier {
       final stream = nostrService.subscribeToEvents(filters: [filter]);
       subscription = stream.listen(
         (event) {
+          // Check if provider was disposed before processing
+          if (!ref.mounted) {
+            Log.warning('Provider disposed before contact list event processing - aborting',
+                name: 'SocialNotifier', category: LogCategory.system);
+            completeAndCleanup();
+            return;
+          }
+
           Log.debug(
               '📋 Received contact list event: ${event.id.substring(0, 8)}...',
               name: 'SocialNotifier',
@@ -578,6 +657,13 @@ class SocialNotifier extends _$SocialNotifier {
       // Wait for events
       final fetchedEvents = await completer.future;
 
+      // Check if provider was disposed during async operation
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during contact list fetch - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
+
       if (fetchedEvents.isNotEmpty) {
         // Get the most recent contact list event
         fetchedEvents.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -608,6 +694,12 @@ class SocialNotifier extends _$SocialNotifier {
     } catch (e) {
       Log.error('Error fetching follow list: $e',
           name: 'SocialNotifier', category: LogCategory.system);
+      // Check if provider was disposed during async operation
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during error handling - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
       state = state.copyWith(error: e.toString());
     }
   }
@@ -685,10 +777,17 @@ class SocialNotifier extends _$SocialNotifier {
 
       await completer.future;
 
+      // Check if provider was disposed during async operation
+      if (!ref.mounted) {
+        Log.warning('Provider disposed during reactions fetch - aborting',
+            name: 'SocialNotifier', category: LogCategory.system);
+        return;
+      }
+
       // Process reactions
       final likedEventIds = <String>{};
       final likeEventIdToReactionId = <String, String>{};
-      
+
       for (final event in reactionEvents) {
         if (event.content == '+') {
           // Find the 'e' tag which references the liked event
@@ -704,7 +803,7 @@ class SocialNotifier extends _$SocialNotifier {
       // Process reposts
       final repostedEventIds = <String>{};
       final repostEventIdToRepostId = <String, String>{};
-      
+
       for (final event in repostEvents) {
         // Find the 'e' tag which references the reposted event
         final eTags = event.tags.where((tag) => tag.length >= 2 && tag[0] == 'e');

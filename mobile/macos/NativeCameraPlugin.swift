@@ -146,7 +146,24 @@ public class NativeCameraPlugin: NSObject, FlutterPlugin {
         // Get default video device - simple approach that was working
         guard let videoDevice = AVCaptureDevice.default(for: .video) else {
             print("❌ [NativeCamera] No camera available")
-            result(FlutterError(code: "NO_CAMERA", message: "No camera available", details: nil))
+
+            // Check if any cameras exist but are in use
+            let allDevices = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.builtInWideAngleCamera, .externalUnknown],
+                mediaType: .video,
+                position: .unspecified
+            ).devices
+
+            let errorMessage: String
+            if allDevices.isEmpty {
+                errorMessage = "No camera found. Please connect a camera or enable your built-in camera in System Settings."
+            } else {
+                let cameraNames = allDevices.map { $0.localizedName }.joined(separator: ", ")
+                errorMessage = "Camera unavailable. Found cameras (\(cameraNames)) but they may be in use by another app (like iPhone Mirroring, FaceTime, or Continuity Camera). Please close other camera apps and try again."
+            }
+
+            print("❌ [NativeCamera] \(errorMessage)")
+            result(FlutterError(code: "NO_CAMERA", message: errorMessage, details: nil))
             return
         }
         

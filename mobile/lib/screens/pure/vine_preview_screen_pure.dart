@@ -40,6 +40,9 @@ class _VinePreviewScreenPureState extends ConsumerState<VinePreviewScreenPure> {
   @override
   void initState() {
     super.initState();
+    // Set default title
+    _titleController.text = 'Do it for the Vine!';
+
     // Pre-populate with default hashtags
     _hashtagsController.text = 'openvine vine';
 

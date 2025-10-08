@@ -1,7 +1,6 @@
 // ABOUTME: TDD test for video lifecycle during tab switches
 // ABOUTME: Ensures videos are paused and disposed when tabs become inactive
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openvine/providers/individual_video_providers.dart';

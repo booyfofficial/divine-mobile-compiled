@@ -188,7 +188,7 @@ class HashtagService {
         hashtags: hashtags,
         limit: limit,
         until: until,
-        replace: false,  // Don't replace - append new videos to existing cached ones
+        replace: false,  // Don't replace - support multiple hashtag subscriptions
       );
 
   /// Search hashtags by prefix

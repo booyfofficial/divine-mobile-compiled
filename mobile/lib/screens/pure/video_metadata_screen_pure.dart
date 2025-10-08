@@ -38,6 +38,9 @@ class _VideoMetadataScreenPureState extends ConsumerState<VideoMetadataScreenPur
   void initState() {
     super.initState();
 
+    // Set default title
+    _titleController.text = 'Do it for the Vine!';
+
     Log.info('📝 VideoMetadataScreenPure: Initialized for file: ${widget.videoFile.path}',
         category: LogCategory.video);
 

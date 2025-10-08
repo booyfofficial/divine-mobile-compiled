@@ -7,10 +7,14 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
 import 'package:nostr_sdk/event.dart';
 import 'package:openvine/services/nostr_key_manager.dart';
 
 void main() {
+  // Use IntegrationTestWidgetsFlutterBinding which allows real HTTP
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
   group('Blossom Upload Minimal Integration', () {
     late File testVideoFile;
     late Keychain keyPair;
@@ -83,15 +87,21 @@ void main() {
       final authEventJson = jsonEncode(event.toJson());
       final authHeader = 'Nostr ${base64.encode(utf8.encode(authEventJson))}';
 
-      // Make upload request
+      // Make upload request using POST with multipart/form-data
       try {
-        final response = await dio.put(
+        final formData = FormData.fromMap({
+          'file': MultipartFile.fromBytes(
+            fileBytes,
+            filename: 'test_video.mp4',
+          ),
+        });
+
+        final response = await dio.post(
           '$serverUrl/upload',
-          data: fileBytes,
+          data: formData,
           options: Options(
             headers: {
               'Authorization': authHeader,
-              'Content-Type': 'application/octet-stream',
             },
             validateStatus: (status) => status != null && status < 500,
           ),

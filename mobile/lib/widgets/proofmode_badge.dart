@@ -2,6 +2,7 @@
 // ABOUTME: Shows tiered verification badges (Verified Mobile, Verified Web, Basic Proof, Unverified) plus original Vine badge
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Verification level enum matching ProofMode implementation
 enum VerificationLevel {
@@ -129,6 +130,87 @@ class ProofModeBadge extends StatelessWidget {
           verticalPadding: 5,
           borderRadius: 8,
           iconSize: 16,
+          fontSize: 12,
+          iconTextSpacing: 5,
+        );
+    }
+  }
+}
+
+/// Original content badge for user-created (non-repost) vines
+class OriginalContentBadge extends StatelessWidget {
+  const OriginalContentBadge({
+    super.key,
+    this.size = BadgeSize.small,
+  });
+
+  final BadgeSize size;
+
+  @override
+  Widget build(BuildContext context) {
+    final dimensions = _getDimensions(size);
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: dimensions.horizontalPadding,
+        vertical: dimensions.verticalPadding,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF00BCD4), // Cyan/teal - modern original content color
+        borderRadius: BorderRadius.circular(dimensions.borderRadius),
+        border: Border.all(
+          color: const Color(0xFF0097A7), // Darker cyan border
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.check_circle,
+            size: dimensions.iconSize,
+            color: Colors.white,
+          ),
+          SizedBox(width: dimensions.iconTextSpacing),
+          Text(
+            'Original',
+            style: GoogleFonts.pacifico(
+              fontSize: dimensions.fontSize,
+              fontWeight: FontWeight.w400,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  _BadgeDimensions _getDimensions(BadgeSize size) {
+    switch (size) {
+      case BadgeSize.small:
+        return const _BadgeDimensions(
+          horizontalPadding: 6,
+          verticalPadding: 2,
+          borderRadius: 12, // More pill-shaped
+          iconSize: 10,
+          fontSize: 10,
+          iconTextSpacing: 3,
+        );
+      case BadgeSize.medium:
+        return const _BadgeDimensions(
+          horizontalPadding: 8,
+          verticalPadding: 4,
+          borderRadius: 14,
+          iconSize: 12,
+          fontSize: 11,
+          iconTextSpacing: 4,
+        );
+      case BadgeSize.large:
+        return const _BadgeDimensions(
+          horizontalPadding: 10,
+          verticalPadding: 5,
+          borderRadius: 16,
+          iconSize: 14,
           fontSize: 12,
           iconTextSpacing: 5,
         );

@@ -2,6 +2,12 @@
 
 **Rule #1**: If you want exception to ANY rule, YOU MUST STOP and get explicit permission from Rabble first. BREAKING THE LETTER OR SPIRIT OF THE RULES IS FAILURE.
 
+## Session Initialization
+At the start of EVERY session, you MUST:
+1. Run `.claude/start_session.sh`
+2. Read all `.claude/*.md` files
+3. Use `.claude/review_checklist.sh` after each task
+
 ## Core Interaction Principles
 
 ### Communication
@@ -142,6 +148,56 @@ FOR EVERY NEW FEATURE OR BUGFIX, YOU MUST follow TDD:
 - If the logs are supposed to contain errors, capture and test it
 - YOU MUST NEVER implement mocks in end-to-end tests. We always use real data and real APIs
 
+## MANDATORY TDD PROCESS
+
+**CRITICAL**: This is NON-NEGOTIABLE. Violation = immediate failure.
+
+### For EVERY Code Change:
+1. **STOP** - Before writing ANY implementation code, write the test
+2. **TEST FIRST** - The test file MUST exist before the implementation file
+3. **VERIFY FAILURE** - Run test and confirm it fails with correct error
+4. **MINIMAL CODE** - Write ONLY enough to make test pass
+5. **VERIFY PASS** - Test must pass before any refactoring
+6. **REVIEW** - Run `.claude/review_checklist.sh` before marking complete
+
+### Code Review Requirements
+YOU MUST run these checks after EVERY implementation:
+```bash
+cd mobile && flutter test  # Must have ≥80% coverage
+./.claude/check_todos.sh   # Must find zero TODOs
+dart .claude/check_duplicates.dart  # No duplicate classes
+flutter analyze  # Zero issues
+
+## Confirmation Required
+Before marking ANY task complete, YOU MUST paste this output:
+```bash
+$ ./.claude/review_checklist.sh
+✅ All checks passed!
+$ echo "Task complete with TDD compliance"
+
+
+### 4. **Create a "Session Contract"**
+Start each session with:
+Before we begin:
+
+Run .claude/start_session.sh
+Confirm you've read AGENTS.md section "Mandatory Development Process"
+State: "I will write tests before implementation"
+Show me the test file you'll create FIRST for this task
+
+
+### 5. **Use Specific Trigger Words**
+Add to CLAUDE.md:
+```markdown
+## Stop Words
+If you see these situations, YOU MUST STOP:
+- About to write implementation without a test file existing
+- Found a TODO from previous session
+- See multiple classes with similar names (UserProfile, UserProfileView)
+- Test coverage drops below 80%
+
+When you STOP, say: "STOP: [reason]. Requesting permission to proceed."
+
 ## Systematic Debugging Process
 
 YOU MUST ALWAYS find the root cause of any issue you are debugging. YOU MUST NEVER fix a symptom or add a workaround instead of finding a root cause, even if it is faster or I seem like I'm in a hurry.
@@ -176,6 +232,28 @@ YOU MUST follow this debugging framework for ANY technical issue:
 
 - If you're having trouble with something, YOU MUST STOP and ask for help. Especially if it's something your human might be better at
 - When you notice something that should be fixed but is unrelated to your current task, document it in your journal rather than fixing it immediately
+
+
+Duplicate Code Prevention
+BEFORE editing any class/function:
+
+Search for similar names: grep -r "ClassName" mobile/lib/
+Check for variants: ProfileWidget, ProfileScreen, ProfileView, etc.
+If duplicates exist, YOU MUST:
+
+Document in journal which is the active implementation
+Ask which to consolidate into
+NEVER create a third variant
+
+
+
+FORBIDDEN naming patterns:
+
+ClassNameNew, ClassNameImproved, ClassNameV2
+function_updated, function_better, function_fixed
+Any temporal references in names
+
+
 
 ## Technology-Specific Guidelines
 

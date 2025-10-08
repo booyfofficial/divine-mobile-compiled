@@ -82,7 +82,12 @@ build_ios() {
 # Function to build macOS
 build_macos() {
     echo "🖥️  Building macOS App..."
-    
+
+    # Reset camera permissions to fix stuck TCC state
+    echo "🔐 Resetting camera permissions for fresh build..."
+    tccutil reset Camera com.openvine.divine 2>/dev/null || true
+    echo "✅ Camera permissions reset (will need to re-grant on first launch)"
+
     # Ensure Flutter dependencies are up to date
     echo "📦 Getting Flutter dependencies..."
     flutter pub get

@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:video_player/video_player.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:openvine/utils/unified_logger.dart';
-import 'package:openvine/services/video_preload_service.dart';
 import 'package:openvine/services/video_cache_manager.dart';
 import 'package:openvine/providers/app_providers.dart';
 
@@ -97,64 +96,56 @@ VideoPlayerController individualVideoController(
   Ref ref,
   VideoControllerParams params,
 ) {
-  // Concurrency/keep-alive policy: dispose immediately when inactive/not prewarmed
-  // CRITICAL FIX: No grace period to prevent zombie controllers during tab switches
+  // Riverpod-native lifecycle: keep controller alive with 30s cache timeout
   final link = ref.keepAlive();
+  Timer? cacheTimer;
 
-  void rescheduleDrop() {
-    // Re-evaluate current activity/prewarm state at the moment of scheduling
-    final currentActiveState = ref.read(activeVideoProvider);
-    final isActiveNow = currentActiveState.currentVideoId == params.videoId;
-    final isPrewarmedNow = ref.read(prewarmManagerProvider).contains(params.videoId);
+  // Riverpod lifecycle hooks for idiomatic cache behavior
+  ref.onCancel(() {
+    // Last listener removed - start 30s cache timeout
+    cacheTimer = Timer(const Duration(seconds: 30), () {
+      link.close(); // Allow autoDispose after 30s of no listeners
+    });
+  });
 
-    // Dispose immediately when inactive/not prewarmed to prevent zombie controllers
-    if (!isActiveNow && !isPrewarmedNow) {
-      try {
-        link.close();
-      } catch (_) {}
-    }
-  }
-
-  // React to active/prewarm changes to adjust lifetime
-  ref.listen<ActiveVideoState>(activeVideoProvider, (_, __) => rescheduleDrop());
-  ref.listen<Set<String>>(prewarmManagerProvider, (_, __) => rescheduleDrop());
+  ref.onResume(() {
+    // New listener added - cancel the disposal timer
+    cacheTimer?.cancel();
+  });
 
   Log.info('🎬 Creating VideoPlayerController for video ${params.videoId.length > 8 ? params.videoId.substring(0, 8) : params.videoId}...',
       name: 'IndividualVideoController', category: LogCategory.system);
 
-  // Try to use preloaded controller first for better performance
-  final preloadService = VideoPreloadService();
-  final preloadedController = preloadService.getPreloadedController(params.videoId);
-
   // Create controller - networkUrl automatically uses HTTP cache for fast reloads
-  final controller = preloadedController ?? VideoPlayerController.networkUrl(
+  final controller = VideoPlayerController.networkUrl(
     Uri.parse(params.videoUrl),
   );
 
   // Cache video in background for future use (non-blocking)
+  // Use unawaited to explicitly mark as fire-and-forget
   final videoCache = openVineVideoCache;
-  ref.read(brokenVideoTrackerProvider.future).then((tracker) {
-    videoCache.cacheVideo(params.videoUrl, params.videoId, brokenVideoTracker: tracker).catchError((error) {
-      Log.warning('⚠️ Background video caching failed: $error',
-          name: 'IndividualVideoController', category: LogCategory.video);
-      return null; // Return null on error
-    });
-  }).catchError((trackerError) {
-    // Fallback without broken video tracker if it fails to load
-    videoCache.cacheVideo(params.videoUrl, params.videoId).catchError((error) {
-      Log.warning('⚠️ Background video caching failed: $error',
-          name: 'IndividualVideoController', category: LogCategory.video);
-      return null; // Return null on error
-    });
-  });
+  unawaited(
+    ref.read(brokenVideoTrackerProvider.future).then((tracker) {
+      videoCache.cacheVideo(params.videoUrl, params.videoId, brokenVideoTracker: tracker).catchError((error) {
+        Log.warning('⚠️ Background video caching failed: $error',
+            name: 'IndividualVideoController', category: LogCategory.video);
+        return null; // Return null on error
+      });
+    }).catchError((trackerError) {
+      // Fallback without broken video tracker if it fails to load
+      videoCache.cacheVideo(params.videoUrl, params.videoId).catchError((error) {
+        Log.warning('⚠️ Background video caching failed: $error',
+            name: 'IndividualVideoController', category: LogCategory.video);
+        return null; // Return null on error
+      });
+    }),
+  );
 
-  // Initialize the controller if not already preloaded
-  final initFuture = preloadedController != null
-    ? Future.value() // Already initialized
-    : controller.initialize().timeout(
-        const Duration(seconds: 15),
-        onTimeout: () => throw TimeoutException('Video initialization timed out'),
-      );
+  // Initialize the controller
+  final initFuture = controller.initialize().timeout(
+    const Duration(seconds: 15),
+    onTimeout: () => throw TimeoutException('Video initialization timed out'),
+  );
 
   initFuture.then((_) {
     Log.info('✅ VideoPlayerController initialized for video ${params.videoId.length > 8 ? params.videoId.substring(0, 8) : params.videoId}...',
@@ -199,9 +190,13 @@ VideoPlayerController individualVideoController(
     Log.error(logMessage, name: 'IndividualVideoController', category: LogCategory.system);
 
     // Mark video as broken for errors that indicate the video URL is non-functional
-    if (_isVideoError(errorMessage)) {
+    // Check if provider is still mounted before using ref
+    if (_isVideoError(errorMessage) && ref.mounted) {
       ref.read(brokenVideoTrackerProvider.future).then((tracker) {
-        tracker.markVideoBroken(params.videoId, 'Playback initialization failed: $errorMessage');
+        // Double-check still mounted before marking broken
+        if (ref.mounted) {
+          tracker.markVideoBroken(params.videoId, 'Playback initialization failed: $errorMessage');
+        }
       }).catchError((trackerError) {
         Log.warning('Failed to mark video as broken: $trackerError',
             name: 'IndividualVideoController', category: LogCategory.system);
@@ -211,13 +206,11 @@ VideoPlayerController individualVideoController(
 
   // AutoDispose: Cleanup controller when provider is disposed
   ref.onDispose(() {
+    cacheTimer?.cancel();
     Log.info('🧹 Disposing VideoPlayerController for video ${params.videoId.length > 8 ? params.videoId.substring(0, 8) : params.videoId}...',
         name: 'IndividualVideoController', category: LogCategory.system);
     controller.dispose();
   });
-
-  // Initial drop scheduling based on current state
-  rescheduleDrop();
 
   // NOTE: Play/pause logic has been moved to VideoFeedItem widget
   // The provider only manages controller lifecycle, NOT playback state
@@ -296,6 +289,9 @@ class ActiveVideoState {
 class ActiveVideoNotifier extends StateNotifier<ActiveVideoState> {
   ActiveVideoNotifier() : super(const ActiveVideoState());
 
+  /// Get the current active video ID (null if no video is active)
+  String? get currentVideoId => state.currentVideoId;
+
   void setActiveVideo(String videoId) {
     // If setting the same video as active, do nothing
     if (state.currentVideoId == videoId) {
@@ -347,20 +343,4 @@ bool isVideoActive(Ref ref, String videoId) {
   return isActive;
 }
 
-/// Tracks which videos should be prewarmed (kept alive briefly as neighbors)
-class PrewarmManager extends StateNotifier<Set<String>> {
-  PrewarmManager() : super(<String>{});
-
-  /// Set the current prewarmed set, capped to [cap] items
-  void setPrewarmed(Iterable<String> ids, {int cap = 3}) {
-    final limited = ids.take(cap).toSet();
-    if (limited.length != state.length || !state.containsAll(limited)) {
-      state = limited;
-    }
-  }
-
-  void clear() => state = <String>{};
-}
-
-final prewarmManagerProvider =
-    StateNotifierProvider<PrewarmManager, Set<String>>((ref) => PrewarmManager());
+// NOTE: PrewarmManager removed - using Riverpod-native lifecycle (onCancel/onResume + 30s timeout)

@@ -509,6 +509,17 @@ class VideoEvent {
     return originalLoops != null && originalLoops! > 0;
   }
 
+  /// Check if this is original content (not a repost)
+  bool get isOriginalContent {
+    return !isRepost;
+  }
+
+  /// Check if we should show the Original Content badge
+  /// Show for original content that is NOT a vintage recovered vine
+  bool get shouldShowOriginalBadge {
+    return isOriginalContent && !isOriginalVine;
+  }
+
   /// Comparator: items with no loop count first (new vines),
   /// then items with loop count sorted by amount desc.
   /// Within groups, break ties by most recent createdAt.
@@ -848,12 +859,13 @@ class VideoEvent {
     }
   }
 
-  /// Score video URL by format preference for web compatibility
+  /// Score video URL by format preference
   /// Higher scores = better format preference
+  /// MP4 is most reliable, HLS/m3u8 is currently broken so avoid it
   static int _scoreVideoUrl(String url) {
     final urlLower = url.toLowerCase();
 
-    // MP4 is best for web compatibility
+    // MP4 is best - universal compatibility and works reliably
     if (urlLower.contains('.mp4')) return 100;
 
     // WebM is good for web
@@ -865,11 +877,11 @@ class VideoEvent {
     // AVI is supported but not optimal
     if (urlLower.contains('.avi')) return 60;
 
-    // HLS (.m3u8) can be problematic on web, lower priority
-    if (urlLower.contains('.m3u8') || urlLower.contains('hls')) return 30;
+    // HLS (.m3u8) is BROKEN - avoid it
+    if (urlLower.contains('.m3u8') || urlLower.contains('hls')) return 10;
 
-    // DASH can be problematic on web
-    if (urlLower.contains('.mpd') || urlLower.contains('dash')) return 25;
+    // DASH can be problematic
+    if (urlLower.contains('.mpd') || urlLower.contains('dash')) return 10;
 
     // Generic URLs get medium priority
     return 50;

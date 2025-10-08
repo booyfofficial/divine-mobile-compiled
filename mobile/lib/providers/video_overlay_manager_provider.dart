@@ -36,15 +36,13 @@ class VideoOverlayManager {
         return;
       }
 
-      // Set as active video to trigger preloading through existing system
+      // Set as active video to trigger controller creation
       _ref.read(activeVideoProvider.notifier).setActiveVideo(videoId);
 
       Log.info('VideoOverlayManager: Preloading video ${videoId.substring(0, 8)}...',
           name: 'VideoOverlayManager', category: LogCategory.system);
 
-      // Prewarming will be handled by existing individual video providers
-      final currentPrewarm = _ref.read(prewarmManagerProvider);
-      _ref.read(prewarmManagerProvider.notifier).setPrewarmed([videoId, ...currentPrewarm], cap: 3);
+      // NOTE: With Riverpod-native lifecycle, controller stays alive via 30s cache timeout
 
     } catch (e) {
       Log.error('VideoOverlayManager: Failed to preload video $videoId: $e',

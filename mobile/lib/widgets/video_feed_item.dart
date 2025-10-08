@@ -46,6 +46,7 @@ class VideoFeedItem extends ConsumerStatefulWidget {
 class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
   int _playbackGeneration = 0; // Prevents race conditions with rapid state changes
   ActiveVideoNotifier? _activeVideoNotifier; // Cached for use in dispose()
+  DateTime? _lastTapTime; // Debounce rapid taps to prevent phantom pauses
 
   /// Translate error messages to user-friendly text
   static String _getErrorMessage(String? errorDescription) {
@@ -105,23 +106,37 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
 
   @override
   void dispose() {
-    // CRITICAL: Always clear active video when widget is disposed
-    // This ensures videos don't play in background tabs
-    try {
-      final videoIdDisplay = widget.video.id.length > 8 ? widget.video.id.substring(0, 8) : widget.video.id;
+    // CRITICAL: Only clear active video if THIS video is still the active one
+    // This prevents clearing active video when a new video has already taken over
+    final videoIdDisplay = widget.video.id.length > 8 ? widget.video.id.substring(0, 8) : widget.video.id;
 
-      // Clear active video if this was the active one
-      // We use the cached notifier since we can't use ref in dispose()
-      if (_activeVideoNotifier != null) {
-        Log.info('🔄 Clearing active video $videoIdDisplay... on widget dispose',
+    // Check if this video is still active before clearing
+    // Use cached notifier to avoid ref.read() during dispose
+    if (_activeVideoNotifier != null) {
+      final currentActiveId = _activeVideoNotifier!.currentVideoId;
+      if (currentActiveId == widget.video.id) {
+        // Use Future() to delay state modification until after widget tree is done building
+        Future(() {
+          try {
+            // Double-check it's still active (another video might have become active in the meantime)
+            final stillActive = _activeVideoNotifier!.currentVideoId == widget.video.id;
+            if (stillActive) {
+              Log.info('🔄 Clearing active video $videoIdDisplay... on widget dispose',
+                  name: 'VideoFeedItem', category: LogCategory.ui);
+              _activeVideoNotifier!.clearActiveVideo();
+            } else {
+              Log.debug('⏭️ Skipping clear - video $videoIdDisplay... no longer active',
+                  name: 'VideoFeedItem', category: LogCategory.ui);
+            }
+          } catch (e) {
+            Log.error('❌ Error clearing active video on dispose: $e',
+                name: 'VideoFeedItem', category: LogCategory.ui);
+          }
+        });
+      } else {
+        Log.debug('⏭️ Skipping clear - video $videoIdDisplay... was not active (current: ${currentActiveId != null && currentActiveId.length > 8 ? currentActiveId.substring(0, 8) : currentActiveId ?? 'none'})',
             name: 'VideoFeedItem', category: LogCategory.ui);
-        _activeVideoNotifier!.clearActiveVideo();
       }
-
-      // The controller will be disposed by Riverpod's autoDispose when no longer needed
-    } catch (e) {
-      Log.error('❌ Error clearing active video on dispose: $e',
-          name: 'VideoFeedItem', category: LogCategory.ui);
     }
 
     super.dispose();
@@ -146,6 +161,9 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
 
       if (shouldPlay) {
         Log.info('▶️ PLAY REQUEST for video $videoIdDisplay | gen=$gen | initialized=${controller.value.isInitialized} | isPlaying=${controller.value.isPlaying}\nCalled from:\n$stackLines',
+            name: 'VideoFeedItem', category: LogCategory.video);
+
+        Log.info('🔍 Play condition check: isInitialized=${controller.value.isInitialized}, isPlaying=${controller.value.isPlaying}, hasError=${controller.value.hasError}',
             name: 'VideoFeedItem', category: LogCategory.video);
 
         if (controller.value.isInitialized && !controller.value.isPlaying) {
@@ -194,6 +212,9 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
           Future.delayed(const Duration(seconds: 10), () {
             controller.removeListener(checkAndPlay);
           });
+        } else {
+          Log.info('❓ PLAY REQUEST for video $videoIdDisplay - No action taken | initialized=${controller.value.isInitialized} | isPlaying=${controller.value.isPlaying} | hasError=${controller.value.hasError}',
+              name: 'VideoFeedItem', category: LogCategory.video);
         }
       } else if (!shouldPlay && controller.value.isPlaying) {
         Log.info('⏸️ PAUSE REQUEST for video $videoIdDisplay | gen=$gen | initialized=${controller.value.isInitialized} | isPlaying=${controller.value.isPlaying}\nCalled from:\n$stackLines',
@@ -238,11 +259,7 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
     // Watch if this video is currently active
     final isActive = ref.watch(isVideoActiveProvider(video.id));
 
-    // Watch if this video is prewarmed (neighbor to active video)
-    final prewarmSet = ref.watch(prewarmManagerProvider);
-    final isPrewarmed = prewarmSet.contains(video.id);
-
-    Log.debug('📱 VideoFeedItem state: isActive=$isActive, isPrewarmed=$isPrewarmed',
+    Log.debug('📱 VideoFeedItem state: isActive=$isActive',
         name: 'VideoFeedItem', category: LogCategory.ui);
 
     return VisibilityDetector(
@@ -274,6 +291,16 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () {
+          // Lighter debounce - ignore taps within 150ms of previous tap
+          // 300ms was too aggressive and was swallowing legitimate pause taps
+          final now = DateTime.now();
+          if (_lastTapTime != null && now.difference(_lastTapTime!) < const Duration(milliseconds: 150)) {
+            Log.debug('⏭️ Ignoring rapid tap (debounced) for $videoIdDisplay...',
+                name: 'VideoFeedItem', category: LogCategory.ui);
+            return;
+          }
+          _lastTapTime = now;
+
           Log.debug('📱 Tap detected on VideoFeedItem for $videoIdDisplay...',
               name: 'VideoFeedItem', category: LogCategory.ui);
           try {
@@ -288,15 +315,20 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
                 name: 'VideoFeedItem', category: LogCategory.ui);
 
             if (isActive) {
-              // Toggle play/pause only if currently active
-              if (controller.value.isPlaying) {
-                Log.info('⏸️ Tap pausing video $videoIdDisplay...',
+              // Toggle play/pause only if currently active and initialized
+              if (controller.value.isInitialized) {
+                if (controller.value.isPlaying) {
+                  Log.info('⏸️ Tap pausing video $videoIdDisplay...',
+                      name: 'VideoFeedItem', category: LogCategory.ui);
+                  controller.pause();
+                } else {
+                  Log.info('▶️ Tap playing video $videoIdDisplay...',
+                      name: 'VideoFeedItem', category: LogCategory.ui);
+                  controller.play();
+                }
+              } else {
+                Log.debug('⏳ Tap ignored - video $videoIdDisplay... not yet initialized',
                     name: 'VideoFeedItem', category: LogCategory.ui);
-                controller.pause();
-              } else if (controller.value.isInitialized) {
-                Log.info('▶️ Tap playing video $videoIdDisplay...',
-                    name: 'VideoFeedItem', category: LogCategory.ui);
-                controller.play();
               }
             } else {
               // Make this video active when tapped
@@ -317,8 +349,8 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Per-item video controller rendering when active OR prewarmed
-              if (isActive || isPrewarmed)
+              // Per-item video controller rendering when active
+              if (isActive)
                 Consumer(
                   builder: (context, ref, child) {
                     final controllerParams = VideoControllerParams(

@@ -677,12 +677,15 @@ class _ProfileScreenScrollableState
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          SelectableText(
-                            NostrEncoding.encodePublicKey(_targetPubkey!),
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                              fontFamily: 'monospace',
+                          Flexible(
+                            child: SelectableText(
+                              NostrEncoding.encodePublicKey(_targetPubkey!),
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                                fontFamily: 'monospace',
+                              ),
+                              maxLines: 1,
                             ),
                           ),
                           const SizedBox(width: 8),

@@ -194,12 +194,20 @@ class VideoEventPublisher {
       // Generate thumbnail and blurhash from local video file
       if (upload.localVideoPath.isNotEmpty) {
         try {
-          // Extract thumbnail bytes from the video at 500ms
+          // Extract thumbnail bytes from the video at 500ms with timeout
+          // to prevent hanging if thumbnail extraction stalls
           final thumbnailBytes =
               await VideoThumbnailService.extractThumbnailBytes(
             videoPath: upload.localVideoPath,
             timeMs: 500, // Extract thumbnail at 500ms
             quality: 75, // Medium quality for smaller data URIs
+          ).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              Log.warning('⏱️ Thumbnail extraction timed out after 10 seconds',
+                  name: 'VideoEventPublisher', category: LogCategory.video);
+              return null;
+            },
           );
 
           if (thumbnailBytes != null) {
@@ -212,9 +220,16 @@ class VideoEventPublisher {
             Log.info('✅ Embedded thumbnail as data URI (${thumbnailSizeKB}KB)',
                 name: 'VideoEventPublisher', category: LogCategory.video);
 
-            // Also generate blurhash for progressive loading
+            // Also generate blurhash for progressive loading with timeout
             final blurhash =
-                await BlurhashService.generateBlurhash(thumbnailBytes);
+                await BlurhashService.generateBlurhash(thumbnailBytes).timeout(
+              const Duration(seconds: 3),
+              onTimeout: () {
+                Log.warning('⏱️ Blurhash generation timed out after 3 seconds',
+                    name: 'VideoEventPublisher', category: LogCategory.video);
+                return null;
+              },
+            );
             if (blurhash != null) {
               imetaComponents.add('blurhash $blurhash');
               Log.info(

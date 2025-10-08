@@ -242,7 +242,11 @@ class _VideoThumbnailWidgetState extends State<VideoThumbnailWidget> {
       );
     }
 
-    return content;
+    // All thumbnails should be square (1:1 aspect ratio) to match 480x480 video dimensions
+    return AspectRatio(
+      aspectRatio: 1.0,
+      child: content,
+    );
   }
 }
 

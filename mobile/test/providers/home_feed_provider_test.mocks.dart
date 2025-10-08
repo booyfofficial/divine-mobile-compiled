@@ -161,6 +161,14 @@ class MockVideoEventService extends _i1.Mock implements _i4.VideoEventService {
           as List<_i5.VideoEvent>);
 
   @override
+  bool isLoadingForSubscription(_i4.SubscriptionType? subscriptionType) =>
+      (super.noSuchMethod(
+            Invocation.method(#isLoadingForSubscription, [subscriptionType]),
+            returnValue: false,
+          )
+          as bool);
+
+  @override
   bool hasEvents(_i4.SubscriptionType? type) =>
       (super.noSuchMethod(
             Invocation.method(#hasEvents, [type]),

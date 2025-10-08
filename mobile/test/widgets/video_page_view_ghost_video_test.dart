@@ -223,13 +223,9 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Verify prewarming happened (videos around index 1 should be prewarmed)
-      final prewarmedVideos = container.read(prewarmManagerProvider);
-      expect(prewarmedVideos, isNotEmpty,
-          reason: 'Prewarming should still work without setting active video');
-
-      // But active video should still be null
-      expect(container.read(activeVideoProvider), isNull,
+      // NOTE: With Riverpod-native lifecycle, prewarming is automatic via VideoPrewarmer
+      // Just verify active video is correctly unset when lifecycle management disabled
+      expect(container.read(activeVideoProvider).currentVideoId, isNull,
           reason: 'Prewarming should not trigger active video setting');
     });
   });

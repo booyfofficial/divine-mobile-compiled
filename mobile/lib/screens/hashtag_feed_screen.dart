@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openvine/providers/app_providers.dart';
 import 'package:openvine/models/video_event.dart';
 import 'package:openvine/screens/pure/explore_video_screen_pure.dart';
+import 'package:openvine/services/video_event_service.dart';
 import 'package:openvine/theme/vine_theme.dart';
 import 'package:openvine/widgets/video_feed_item.dart';
 import 'package:openvine/widgets/video_thumbnail_widget.dart';
@@ -135,8 +136,13 @@ class _HashtagFeedScreenState extends ConsumerState<HashtagFeedScreen> {
     super.initState();
     // Subscribe to videos with this hashtag
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('[HASHTAG] 🏷️  Subscribing to hashtag: ${widget.hashtag}');
       final hashtagService = ref.read(hashtagServiceProvider);
-      hashtagService.subscribeToHashtagVideos([widget.hashtag]);
+      hashtagService.subscribeToHashtagVideos([widget.hashtag]).then((_) {
+        print('[HASHTAG] ✅ Successfully subscribed to hashtag: ${widget.hashtag}');
+      }).catchError((error) {
+        print('[HASHTAG] ❌ Failed to subscribe to hashtag ${widget.hashtag}: $error');
+      });
     });
   }
 
@@ -144,13 +150,28 @@ class _HashtagFeedScreenState extends ConsumerState<HashtagFeedScreen> {
   Widget build(BuildContext context) {
     final body = Builder(
           builder: (context) {
+            print('[HASHTAG] 🔄 Building HashtagFeedScreen for #${widget.hashtag}');
             final videoService = ref.watch(videoEventServiceProvider);
             final hashtagService = ref.watch(hashtagServiceProvider);
             final videos = List<VideoEvent>.from(
               hashtagService.getVideosByHashtags([widget.hashtag]),
             )..sort(VideoEvent.compareByLoopsThenTime);
 
-            if (videoService.isLoading && videos.isEmpty) {
+            print('[HASHTAG] 📊 Found ${videos.length} videos for #${widget.hashtag}');
+            if (videos.isNotEmpty) {
+              print('[HASHTAG] 📹 First 3 video IDs: ${videos.take(3).map((v) => v.id.substring(0, 8)).join(', ')}');
+            }
+
+            // Use per-subscription loading state for hashtag feed
+            final isLoadingHashtag = videoService.isLoadingForSubscription(SubscriptionType.hashtag);
+            print('[HASHTAG] ⏳ Loading state: $isLoadingHashtag');
+
+            // Check if we have videos in different lists
+            final discoveryCount = videoService.getEventCount(SubscriptionType.discovery);
+            final hashtagCount = videoService.getEventCount(SubscriptionType.hashtag);
+            print('[HASHTAG] 📊 Discovery videos: $discoveryCount, Hashtag videos: $hashtagCount');
+
+            if (isLoadingHashtag && videos.isEmpty) {
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -229,7 +250,7 @@ class _HashtagFeedScreenState extends ConsumerState<HashtagFeedScreen> {
             }
 
             // Standalone mode: full-screen scrollable list
-            final isLoadingMore = videoService.isLoading;
+            final isLoadingMore = isLoadingHashtag;
 
             return ListView.builder(
               // Add 1 for loading indicator if still loading

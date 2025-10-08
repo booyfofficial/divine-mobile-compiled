@@ -10,10 +10,11 @@ import 'package:openvine/utils/unified_logger.dart';
 class VideoCacheManager extends CacheManager {
   static const key = 'openvine_video_cache';
 
-  // Cache configuration
+  // Cache configuration - AGGRESSIVE for demo-quality experience
+  // With ~1MB videos, we can cache 1000 videos in ~1GB
   static const Duration _stalePeriod = Duration(days: 30); // Videos stay cached for 30 days
-  static const int _maxCacheObjects = 150; // Max 150 videos cached
-  static const int _maxCacheSizeMB = 500; // Max 500MB for video cache
+  static const int _maxCacheObjects = 1000; // Max 1000 videos cached (demo-optimized)
+  static const int _maxCacheSizeMB = 1024; // Max 1GB for video cache (demo-optimized)
 
   static VideoCacheManager? _instance;
 
@@ -49,6 +50,14 @@ class VideoCacheManager extends CacheManager {
   /// Download and cache a video for offline use
   Future<File?> cacheVideo(String videoUrl, String videoId, {BrokenVideoTracker? brokenVideoTracker}) async {
     try {
+      // Check if already cached first - avoid redundant downloads
+      final cachedFile = await getCachedVideo(videoId);
+      if (cachedFile != null) {
+        Log.debug('⏭️ Video ${videoId.substring(0, 8)}... already cached, skipping download',
+            name: 'VideoCacheManager', category: LogCategory.video);
+        return cachedFile;
+      }
+
       Log.info('🎬 Caching video ${videoId.substring(0, 8)}... from $videoUrl',
           name: 'VideoCacheManager', category: LogCategory.video);
 

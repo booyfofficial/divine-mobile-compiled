@@ -36,7 +36,7 @@ class BlossomUploadResult {
 class BlossomUploadService {
   static const String _blossomServerKey = 'blossom_server_url';
   static const String _useBlossomKey = 'use_blossom_upload';
-  static const String defaultBlossomServer = 'https://cf-stream-service-prod.protestnet.workers.dev';
+  static const String defaultBlossomServer = 'https://blossom.divine.video';
   
   final AuthService authService;
   final INostrService nostrService;
@@ -197,32 +197,25 @@ class BlossomUploadService {
 
       Log.info('✅ User is authenticated, can create signed events',
           name: 'BlossomUploadService', category: LogCategory.video);
-      
-      // For now, we'll use a simplified approach since the embedded relay doesn't expose Nostr SDK
-      // We'll need to create the upload using direct HTTP calls with Blossom BUD-01 auth
-      Log.warning('Blossom upload using SDK integration is pending - needs NostrService refactoring',
-          name: 'BlossomUploadService', category: LogCategory.video);
-      
+
       // Report initial progress
       onProgress?.call(0.1);
 
-      Log.info('Reading file bytes for hash calculation...',
+      // Use Blossom spec: PUT with raw bytes and proper auth headers
+      Log.info('Uploading using Blossom spec (PUT with raw bytes)',
           name: 'BlossomUploadService', category: LogCategory.video);
 
-      // Calculate file hash for Blossom
+      // Read file bytes
       final fileBytes = await videoFile.readAsBytes();
-      Log.info('File bytes read: ${fileBytes.length} bytes',
-          name: 'BlossomUploadService', category: LogCategory.video);
-
-      Log.info('Calculating SHA-256 hash...',
-          name: 'BlossomUploadService', category: LogCategory.video);
-      final fileHash = HashUtil.sha256Hash(fileBytes);
       final fileSize = fileBytes.length;
-      
+      final fileHash = HashUtil.sha256Hash(fileBytes);
+
       Log.info('File hash: $fileHash, size: $fileSize bytes',
           name: 'BlossomUploadService', category: LogCategory.video);
-      
-      // Create Blossom auth event
+
+      onProgress?.call(0.2);
+
+      // Create Blossom auth event (kind 24242)
       final authEvent = await _createBlossomAuthEvent(
         url: '$serverUrl/upload',
         method: 'PUT',
@@ -236,169 +229,101 @@ class BlossomUploadService {
           errorMessage: 'Failed to create Blossom authentication',
         );
       }
-      
-      // Prepare authorization header
+
+      // Prepare headers following Blossom spec
       final authEventJson = jsonEncode(authEvent.toJson());
       final authHeader = 'Nostr ${base64.encode(utf8.encode(authEventJson))}';
 
-      Log.info('🔐 Auth event JSON: $authEventJson',
+      Log.info('Sending PUT request with raw video bytes',
           name: 'BlossomUploadService', category: LogCategory.video);
-      Log.info('🔐 Base64 auth payload: ${base64.encode(utf8.encode(authEventJson))}',
+      Log.info('  URL: $serverUrl/upload',
           name: 'BlossomUploadService', category: LogCategory.video);
-
-      Log.info('Blossom BUD-01 Upload: Sending raw file bytes with PUT request',
-          name: 'BlossomUploadService', category: LogCategory.video);
-
-      Log.info('🔍 Upload request details:',
-          name: 'BlossomUploadService', category: LogCategory.video);
-      Log.info('  📍 URL: $serverUrl/upload',
-          name: 'BlossomUploadService', category: LogCategory.video);
-      Log.info('  📝 Method: PUT with raw bytes',
-          name: 'BlossomUploadService', category: LogCategory.video);
-      Log.info('  📊 File size: $fileSize bytes',
-          name: 'BlossomUploadService', category: LogCategory.video);
-      Log.info('  🔐 Auth header length: ${authHeader.length} chars',
-          name: 'BlossomUploadService', category: LogCategory.video);
-      Log.info('  🔐 Auth header preview: ${authHeader.substring(0, 50)}...',
+      Log.info('  File size: $fileSize bytes',
           name: 'BlossomUploadService', category: LogCategory.video);
 
-      // Blossom BUD-01: PUT raw file bytes directly to /upload
+      // PUT request with raw bytes (Blossom spec)
       final response = await dio.put(
         '$serverUrl/upload',
-        data: Stream.fromIterable([fileBytes]),
+        data: Stream.fromIterable(fileBytes.map((e) => [e])),
         options: Options(
           headers: {
             'Authorization': authHeader,
             'Content-Type': 'video/mp4',
-            'Content-Length': fileSize.toString(),
+            'Content-Length': '$fileSize',
           },
           validateStatus: (status) => status != null && status < 500,
         ),
         onSendProgress: (sent, total) {
           if (total > 0) {
-            // Progress from 10% to 90% during upload
-            final progress = 0.1 + (sent / total) * 0.8;
+            // Progress from 20% to 90% during upload
+            final progress = 0.2 + (sent / total) * 0.7;
             onProgress?.call(progress);
           }
         },
       );
 
       Log.info('Blossom server response: ${response.statusCode}',
-            name: 'BlossomUploadService', category: LogCategory.video);
-        Log.info('Response headers: ${response.headers}',
-            name: 'BlossomUploadService', category: LogCategory.video);
-        Log.info('Response data type: ${response.data.runtimeType}',
-            name: 'BlossomUploadService', category: LogCategory.video);
-        Log.info('Response data: ${response.data}',
-            name: 'BlossomUploadService', category: LogCategory.video);
+          name: 'BlossomUploadService', category: LogCategory.video);
+      Log.info('Response data: ${response.data}',
+          name: 'BlossomUploadService', category: LogCategory.video);
 
-        // Handle HTTP 409 Conflict - file already exists on server
-        if (response.statusCode == 409) {
-          Log.info('✅ File already exists on Blossom server (hash: $fileHash)',
-              name: 'BlossomUploadService', category: LogCategory.video);
+      // Handle successful responses
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = response.data;
 
-          // Try to extract URL from response, fall back to cdn.divine.video
-          String existingUrl;
-          if (response.data is Map) {
-            final urlRaw = response.data['url'];
-            existingUrl = urlRaw?.toString() ?? 'https://cdn.divine.video/$fileHash';
-          } else {
-            existingUrl = 'https://cdn.divine.video/$fileHash';
-          }
+        if (responseData is Map) {
+          final urlRaw = responseData['url'];
+          final cdnUrl = urlRaw?.toString();
 
-          onProgress?.call(1.0);
+          if (cdnUrl != null && cdnUrl.isNotEmpty) {
+            onProgress?.call(1.0);
 
-          Log.info('  Using existing URL: $existingUrl',
-              name: 'BlossomUploadService', category: LogCategory.video);
-
-          return BlossomUploadResult(
-            success: true,
-            videoId: fileHash,
-            cdnUrl: existingUrl,
-          );
-        }
-
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          Log.info('✅ Upload completed successfully',
-              name: 'BlossomUploadService', category: LogCategory.video);
-          onProgress?.call(0.95);
-
-          // Parse Blossom BUD-01 response: {sha256, url, size, type, uploaded}
-          // Apply Postel's Law: be liberal in what we accept
-          final blobData = response.data;
-
-          if (blobData is Map) {
-            // Robustly extract fields - handle different types and missing fields
-            final sha256Raw = blobData['sha256'];
-            final sha256 = sha256Raw?.toString();
-
-            final urlRaw = blobData['url'];
-            final mediaUrl = urlRaw?.toString();
-
-            final uploadedRaw = blobData['uploaded'];
-            final uploadedTimestamp = uploadedRaw?.toString();
-
-            // URL is the only required field
-            if (mediaUrl != null && mediaUrl.isNotEmpty) {
-              // Extract video ID from hash, fallback to our calculated hash
-              final videoId = (sha256 != null && sha256.isNotEmpty) ? sha256 : fileHash;
-
-              onProgress?.call(1.0);
-
-              Log.info('✅ Blossom upload successful',
-                  name: 'BlossomUploadService', category: LogCategory.video);
-              Log.info('  URL: $mediaUrl',
-                  name: 'BlossomUploadService', category: LogCategory.video);
-              Log.info('  SHA256: ${sha256 ?? fileHash} ${sha256 == null ? "(calculated)" : ""}',
-                  name: 'BlossomUploadService', category: LogCategory.video);
-              Log.info('  Uploaded: ${uploadedTimestamp ?? "unknown"}',
-                  name: 'BlossomUploadService', category: LogCategory.video);
-
-              return BlossomUploadResult(
-                success: true,
-                cdnUrl: mediaUrl,
-                videoId: videoId,
-              );
-            } else {
-              // Log full response for debugging
-              Log.error('Missing or empty URL field in response. Full response: $blobData',
-                  name: 'BlossomUploadService', category: LogCategory.video);
-              return BlossomUploadResult(
-                success: false,
-                errorMessage: 'Invalid Blossom response: missing or empty URL field',
-              );
-            }
-          } else {
-            // Log unexpected response type
-            Log.error('Expected JSON object, got: ${blobData.runtimeType}. Response: $blobData',
+            Log.info('✅ Blossom upload successful',
                 name: 'BlossomUploadService', category: LogCategory.video);
+            Log.info('  URL: $cdnUrl',
+                name: 'BlossomUploadService', category: LogCategory.video);
+            Log.info('  Video ID (hash): $fileHash',
+                name: 'BlossomUploadService', category: LogCategory.video);
+
             return BlossomUploadResult(
-              success: false,
-              errorMessage: 'Invalid Blossom response format: expected JSON object, got ${blobData.runtimeType}',
+              success: true,
+              cdnUrl: cdnUrl,
+              videoId: fileHash,
             );
           }
-        } else if (response.statusCode == 401) {
-          Log.error('❌ Blossom authentication failed: ${response.data}',
-              name: 'BlossomUploadService', category: LogCategory.video);
-          return BlossomUploadResult(
-            success: false,
-            errorMessage: 'Authentication failed - check your Nostr keys. Server response: ${response.data}',
-          );
-        } else if (response.statusCode == 413) {
-          Log.error('❌ Blossom file too large: ${response.data}',
-              name: 'BlossomUploadService', category: LogCategory.video);
-          return BlossomUploadResult(
-            success: false,
-            errorMessage: 'File too large for this Blossom server. Server response: ${response.data}',
-          );
-        } else {
-          Log.error('❌ Upload failed: ${response.statusCode} - ${response.data}',
-              name: 'BlossomUploadService', category: LogCategory.video);
-          return BlossomUploadResult(
-            success: false,
-            errorMessage: 'Upload failed: ${response.statusCode} - ${response.data}',
-          );
         }
+
+        // Response didn't have expected URL
+        Log.error('❌ Response missing URL field: $responseData',
+            name: 'BlossomUploadService', category: LogCategory.video);
+        return BlossomUploadResult(
+          success: false,
+          errorMessage: 'Upload response missing URL field',
+        );
+      }
+
+      // Handle 409 Conflict - file already exists
+      if (response.statusCode == 409) {
+        final existingUrl = 'https://cdn.divine.video/$fileHash.mp4';
+        Log.info('✅ File already exists on server: $existingUrl',
+            name: 'BlossomUploadService', category: LogCategory.video);
+
+        onProgress?.call(1.0);
+
+        return BlossomUploadResult(
+          success: true,
+          cdnUrl: existingUrl,
+          videoId: fileHash,
+        );
+      }
+
+      // Handle other error responses
+      Log.error('❌ Upload failed: ${response.statusCode} - ${response.data}',
+          name: 'BlossomUploadService', category: LogCategory.video);
+      return BlossomUploadResult(
+        success: false,
+        errorMessage: 'Upload failed: ${response.statusCode} - ${response.data}',
+      );
     } on DioException catch (e) {
       Log.error('Blossom upload network error: ${e.message}',
           name: 'BlossomUploadService', category: LogCategory.video);
@@ -507,18 +432,18 @@ class BlossomUploadService {
       final authEventJson = jsonEncode(authEvent.toJson());
       final authHeader = 'Nostr ${base64.encode(utf8.encode(authEventJson))}';
 
-      Log.info('📤 Blossom BUD-01 Image Upload: PUT raw bytes to $serverUrl/upload',
+      Log.info('📤 Blossom Image Upload: PUT with raw bytes to $serverUrl/upload',
           name: 'BlossomUploadService', category: LogCategory.video);
 
-      // Blossom BUD-01: PUT raw file bytes directly to /upload
+      // Blossom spec: PUT with raw bytes
       final response = await dio.put(
         '$serverUrl/upload',
-        data: Stream.fromIterable([fileBytes]),
+        data: Stream.fromIterable(fileBytes.map((e) => [e])),
         options: Options(
           headers: {
             'Authorization': authHeader,
             'Content-Type': mimeType,
-            'Content-Length': fileSize.toString(),
+            'Content-Length': '$fileSize',
           },
           validateStatus: (status) => status != null && status < 500,
         ),

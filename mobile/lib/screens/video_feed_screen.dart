@@ -151,10 +151,8 @@ class _VideoFeedScreenState extends ConsumerState<VideoFeedScreen>
     Log.debug('📱 Callback firing: dispose._pauseAllVideos, widget mounted: $mounted',
         name: 'VideoFeedScreen', category: LogCategory.ui);
     _pauseAllVideos();
-    // Clear any prewarmed neighbors
-    try {
-      ref.read(prewarmManagerProvider.notifier).clear();
-    } catch (_) {}
+
+    // NOTE: With Riverpod-native lifecycle, controllers autodispose via 30s timeout
 
     super.dispose();
   }

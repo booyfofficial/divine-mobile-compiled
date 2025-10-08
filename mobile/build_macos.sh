@@ -1,5 +1,5 @@
 #!/bin/bash
-# ABOUTME: macOS build script that ensures CocoaPods dependencies are properly installed  
+# ABOUTME: macOS build script that ensures CocoaPods dependencies are properly installed
 # ABOUTME: before building the macOS app to prevent pod install sync errors
 
 set -e
@@ -8,6 +8,11 @@ echo "🖥️  Building macOS App..."
 
 # Navigate to project root
 cd "$(dirname "$0")"
+
+# Reset camera permissions to fix stuck TCC state
+echo "🔐 Resetting camera permissions for fresh build..."
+tccutil reset Camera com.openvine.divine 2>/dev/null || true
+echo "✅ Camera permissions reset (will need to re-grant on first launch)"
 
 # Ensure Flutter dependencies are up to date
 echo "📦 Getting Flutter dependencies..."

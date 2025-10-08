@@ -53,14 +53,20 @@ class _AppLifecycleHandlerState extends ConsumerState<AppLifecycleHandler>
     switch (state) {
       case AppLifecycleState.resumed:
         Log.info(
-          '📱 App resumed - enabling visibility-based playback',
+          '📱 App resumed from background - restoring activities',
           name: 'AppLifecycleHandler',
           category: LogCategory.system,
         );
         if (!_tickersEnabled) {
           setState(() => _tickersEnabled = true);
         }
-        visibilityManager.resumeVisibilityBasedPlayback();
+        // Don't force resume playback - let visibility detectors naturally trigger
+        // This prevents playing videos that are covered by modals/camera screen
+        Log.info(
+          '📱 App resumed - visibility detectors will handle playback naturally',
+          name: 'AppLifecycleHandler',
+          category: LogCategory.system,
+        );
 
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:

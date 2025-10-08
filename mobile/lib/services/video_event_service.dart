@@ -3,7 +3,6 @@
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:nostr_sdk/event.dart';
 import 'package:nostr_sdk/filter.dart';
@@ -243,6 +242,12 @@ class VideoEventService extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  /// Get loading state for a specific subscription type
+  bool isLoadingForSubscription(SubscriptionType subscriptionType) {
+    final paginationState = _paginationStates[subscriptionType];
+    return paginationState?.isLoading ?? false;
+  }
 
   /// Check if a subscription type has events
   bool hasEvents(SubscriptionType type) => (_eventLists[type] ?? []).isNotEmpty;
@@ -1635,16 +1640,29 @@ class VideoEventService extends ChangeNotifier {
   List<VideoEvent> getVideoEventsByHashtags(List<String> hashtags) {
     final result = <VideoEvent>[];
     final seenIds = <String>{};
-    
+
     // Convert requested hashtags to lowercase for case-insensitive comparison
     final hashtagsLower = hashtags.map((tag) => tag.toLowerCase()).toList();
+
+    Log.debug(
+        '🔍 Searching for videos with hashtags: $hashtagsLower',
+        name: 'VideoEventService',
+        category: LogCategory.video);
+
+    // Log event list sizes for debugging
+    for (final entry in _eventLists.entries) {
+      Log.debug(
+          '  - ${entry.key}: ${entry.value.length} videos',
+          name: 'VideoEventService',
+          category: LogCategory.video);
+    }
 
     for (final events in _eventLists.values) {
       for (final event in events) {
         // Convert event hashtags to lowercase for comparison
-        final eventHashtagsLower = 
+        final eventHashtagsLower =
             event.hashtags.map((tag) => tag.toLowerCase()).toList();
-        
+
         // Check if event has any of the requested hashtags (case-insensitive)
         if (hashtagsLower.any(eventHashtagsLower.contains)) {
           if (!seenIds.contains(event.id)) {
@@ -1654,6 +1672,12 @@ class VideoEventService extends ChangeNotifier {
         }
       }
     }
+
+    Log.debug(
+        '✅ Found ${result.length} videos with hashtags: $hashtagsLower',
+        name: 'VideoEventService',
+        category: LogCategory.video);
+
     // Apply loops-first sort for any assembled set
     result.sort(VideoEvent.compareByLoopsThenTime);
     return result;
@@ -2029,6 +2053,14 @@ class VideoEventService extends ChangeNotifier {
       return; // Don't add videos without valid URLs
     }
 
+    // Debug logging for hashtag subscriptions
+    if (subscriptionType == SubscriptionType.hashtag) {
+      Log.info(
+          '📝 Adding video to hashtag list: ${videoEvent.id.substring(0, 8)} - hashtags: ${videoEvent.hashtags}',
+          name: 'VideoEventService',
+          category: LogCategory.video);
+    }
+
     final eventList = _eventLists[subscriptionType];
     if (eventList == null) {
       Log.error('Invalid subscription type: $subscriptionType',
@@ -2062,6 +2094,10 @@ class VideoEventService extends ChangeNotifier {
         return null;
       });
     }
+
+    // REMOVED: Eager caching here was causing 100+ simultaneous downloads
+    // Instead, let VideoPageView's prewarming system handle caching strategically
+    // This prevents bandwidth saturation that slows first video load
 
     // Different insertion strategies based on subscription type and event context
     switch (subscriptionType) {
@@ -2652,6 +2688,7 @@ class VideoEventService extends ChangeNotifier {
       {required bool isHistorical}) {
     _addVideoToSubscription(event, type, isHistorical: isHistorical);
   }
+
 }
 
 /// Exception thrown by video event service operations

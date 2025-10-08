@@ -278,7 +278,14 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
       final videos = videoEventsAsync.value!;
       Log.info('✅ PopularNowTab: Data state - ${videos.length} videos',
           name: 'ExploreScreen', category: LogCategory.video);
-      return _buildVideoGrid(videos, 'Popular Now');
+      // Sort by loop count (descending order - most popular first)
+      final sortedVideos = List<VideoEvent>.from(videos);
+      sortedVideos.sort((a, b) {
+        final aLoops = a.originalLoops ?? 0;
+        final bLoops = b.originalLoops ?? 0;
+        return bLoops.compareTo(aLoops); // Descending order
+      });
+      return _buildVideoGrid(sortedVideos, 'Popular Now');
     }
 
     if (videoEventsAsync.hasError) {

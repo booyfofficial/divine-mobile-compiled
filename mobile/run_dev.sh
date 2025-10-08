@@ -55,6 +55,12 @@ resolve_device() {
 
 DEVICE=$(resolve_device "$DEVICE_ARG")
 
+# Reset camera permissions for macOS builds to prevent stuck TCC state
+if [ "$DEVICE" = "macos" ]; then
+    echo "🔐 Resetting camera permissions for macOS..."
+    tccutil reset Camera com.openvine.divine 2>/dev/null || true
+fi
+
 echo "🚀 Running OpenVine in $BUILD_MODE mode on $DEVICE"
 
 flutter run -d "$DEVICE" --$BUILD_MODE

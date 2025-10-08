@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openvine/models/video_event.dart';
 import 'package:openvine/providers/individual_video_providers.dart';
 import 'package:openvine/providers/tab_visibility_provider.dart';
+import 'package:openvine/providers/video_prewarmer_provider.dart';
 import 'package:openvine/widgets/video_feed_item.dart';
 import 'package:openvine/utils/unified_logger.dart';
 
@@ -138,19 +139,29 @@ class _VideoPageViewState extends ConsumerState<VideoPageView> {
   void _prewarmNeighbors(int index) {
     if (!widget.enablePrewarming) return;
 
-    final ids = <String>{};
-    for (final i in [index - 1, index, index + 1]) {
+    final params = <VideoControllerParams>[];
+
+    // AGGRESSIVE prewarming for demo-quality instant scrolling
+    // Prewarm 10 videos ahead (more important for forward scrolling)
+    // and 3 videos behind (less important for backward scrolling)
+    // This ensures buttery-smooth infinite scrolling experience
+    for (int offset = -3; offset <= 10; offset++) {
+      final i = index + offset;
       if (i >= 0 && i < widget.videos.length) {
         final v = widget.videos[i];
         if (v.videoUrl != null && v.videoUrl!.isNotEmpty) {
-          ids.add(v.id);
+          params.add(VideoControllerParams(
+            videoId: v.id,
+            videoUrl: v.videoUrl!,
+            videoEvent: v,
+          ));
         }
       }
     }
 
-    if (ids.isNotEmpty) {
+    if (params.isNotEmpty) {
       try {
-        ref.read(prewarmManagerProvider.notifier).setPrewarmed(ids.toList(), cap: 3);
+        ref.read(videoPrewarmerProvider.notifier).prewarmVideos(params);
       } catch (e) {
         Log.error('Error prewarming neighbors: $e',
             name: 'VideoPageView', category: LogCategory.video);

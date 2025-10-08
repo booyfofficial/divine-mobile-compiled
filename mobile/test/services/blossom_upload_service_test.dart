@@ -171,12 +171,12 @@ void main() {
         // Arrange
         await service.setBlossomEnabled(true);
         await service.setBlossomServer('https://cdn.satellite.earth');
-        
+
         // Use valid hex keys for testing
         // ignore: unused_local_variable
         const testPrivateKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
         const testPublicKey = '0223456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-        
+
         when(() => mockAuthService.isAuthenticated).thenReturn(true);
         when(() => mockAuthService.currentPublicKeyHex).thenReturn(testPublicKey);
 
@@ -194,70 +194,131 @@ void main() {
             'Upload video to Blossom server',
           );
         });
-        
+
         final mockFile = MockFile();
         when(() => mockFile.path).thenReturn('/test/video.mp4');
         when(() => mockFile.existsSync()).thenReturn(true);
         when(() => mockFile.readAsBytes()).thenAnswer((_) async => Uint8List.fromList([1, 2, 3, 4, 5]));
         when(() => mockFile.readAsBytesSync()).thenReturn(Uint8List.fromList([1, 2, 3, 4, 5]));
         when(() => mockFile.lengthSync()).thenReturn(5);
-        
+
         // Mock Dio response
         final mockResponse = MockResponse();
         when(() => mockResponse.statusCode).thenReturn(200);
+        when(() => mockResponse.headers).thenReturn(Headers());
         when(() => mockResponse.data).thenReturn({
           'url': 'https://cdn.satellite.earth/abc123.mp4',
           'sha256': 'abc123',
           'size': 5,
         });
-        
+
         when(() => mockDio.put(
           any(),
           data: any(named: 'data'),
           options: any(named: 'options'),
           onSendProgress: any(named: 'onSendProgress'),
         )).thenAnswer((_) async => mockResponse);
-        
+
         // Act
         final result = await service.uploadVideo(
           videoFile: mockFile,
           nostrPubkey: testPublicKey,
           title: 'Test Video',
         );
-        
+
         // Assert
+        if (!result.success) {
+          // ignore: avoid_print
+          print('Upload failed with error: ${result.errorMessage}');
+        }
         expect(result.success, isTrue);
         expect(result.cdnUrl, equals('https://cdn.satellite.earth/abc123.mp4'));
-        expect(result.videoId, equals('abc123.mp4'));
+        // videoId is now the calculated SHA-256 hash of the file bytes [1,2,3,4,5]
+        expect(result.videoId, equals('74f81fe167d99b4cb41d6d0ccda82278caee9f3e2f25d5e5a3936ff3dcec60d0'));
       });
-      
-      test('should send PUT request with NIP-98 auth header', () async {
-        // This test will verify the actual HTTP request
+
+      test('should send PUT request with raw bytes and NIP-98 auth header', () async {
         // Arrange
         await service.setBlossomEnabled(true);
         await service.setBlossomServer('https://cdn.satellite.earth');
-        
+
+        const testPublicKey = '0223456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
         when(() => mockAuthService.isAuthenticated).thenReturn(true);
-        when(() => mockNostrService.hasKeys).thenReturn(true);
-        when(() => mockNostrService.publicKey).thenReturn('testpubkey');
-        
+        when(() => mockAuthService.currentPublicKeyHex).thenReturn(testPublicKey);
+
+        // Mock the createAndSignEvent method
+        when(() => mockAuthService.createAndSignEvent(
+          kind: any(named: 'kind'),
+          content: any(named: 'content'),
+          tags: any(named: 'tags'),
+        )).thenAnswer((_) async {
+          return Event(
+            testPublicKey,
+            24242,
+            [['t', 'upload']],
+            'Upload video to Blossom server',
+          );
+        });
+
         final mockFile = MockFile();
         when(() => mockFile.path).thenReturn('/test/video.mp4');
         when(() => mockFile.existsSync()).thenReturn(true);
         when(() => mockFile.readAsBytes()).thenAnswer((_) async => Uint8List.fromList([1, 2, 3, 4, 5]));
         when(() => mockFile.readAsBytesSync()).thenReturn(Uint8List.fromList([1, 2, 3, 4, 5]));
         when(() => mockFile.lengthSync()).thenReturn(5);
-        
+
+        // Mock successful response
+        final mockResponse = MockResponse();
+        when(() => mockResponse.statusCode).thenReturn(200);
+        when(() => mockResponse.headers).thenReturn(Headers());
+        when(() => mockResponse.data).thenReturn({
+          'url': 'https://cdn.satellite.earth/abc123.mp4',
+          'sha256': 'abc123',
+          'size': 5,
+        });
+
+        // Capture the actual request to verify it uses PUT with raw bytes
+        when(() => mockDio.put(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+          onSendProgress: any(named: 'onSendProgress'),
+        )).thenAnswer((_) async => mockResponse);
+
         // Act
         final result = await service.uploadVideo(
           videoFile: mockFile,
-          nostrPubkey: 'testpubkey',
+          nostrPubkey: testPublicKey,
           title: 'Test Video',
         );
-        
-        // Assert - This should fail until we implement it
-        expect(result.success, isFalse);
-        expect(result.errorMessage, isNotNull);
+
+        // Assert
+        expect(result.success, isTrue);
+
+        // Verify PUT was called with raw bytes (Stream)
+        verify(() => mockDio.put(
+          'https://cdn.satellite.earth/upload',
+          data: any(named: 'data', that: isA<Stream>()),
+          options: any(named: 'options', that: isA<Options>().having(
+            (opts) => opts.headers?['Authorization'],
+            'Authorization header',
+            startsWith('Nostr '),
+          ).having(
+            (opts) => opts.headers?['Content-Type'],
+            'Content-Type header',
+            equals('video/mp4'),
+          )),
+          onSendProgress: any(named: 'onSendProgress'),
+        )).called(1);
+
+        // Verify POST was NOT called
+        verifyNever(() => mockDio.post(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+          onSendProgress: any(named: 'onSendProgress'),
+        ));
       });
     });
 

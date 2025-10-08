@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Video Playback During Camera Recording (2025-10-08)
+
+#### Bug Fixes
+- **Fixed videos playing in background during camera recording** - Videos now fully disposed when opening camera
+  - `VideoStopNavigatorObserver` now detects camera screen navigation and disposes all video controllers
+  - Previous behavior only cleared active video, allowing background playback to continue
+  - Camera screen navigation now triggers `VideoOverlayManager.disposeAllControllers()`
+  - Ensures complete cleanup of video state when entering camera mode
+
+#### Technical Details
+- Modified `lib/services/video_stop_navigator_observer.dart`:
+  - Added import for `video_overlay_manager_provider.dart`
+  - Lines 27-44: Added camera screen detection logic
+  - Checks if route name contains "Camera" to identify camera navigation
+  - Calls `disposeAllControllers()` for camera routes vs `clearActiveVideo()` for other routes
+  - Logs differentiate between disposal actions for debugging
+
+### Fixed - iOS Camera Permissions on Fresh App Launch (2025-10-08)
+
+#### Bug Fixes
+- **Fixed iOS camera permission detection on fresh app launch** - Permissions now correctly detected without requiring Settings visit
+  - iOS `permission_handler` plugin has persistent caching bug that returns stale status across app launches
+  - Solution: Bypass `permission_handler` entirely, attempt camera initialization directly
+  - Native `AVCaptureDevice` checks real system permissions, not cached values
+  - Works correctly for both returning from Settings AND fresh app launches
+
+#### Root Cause
+- `permission_handler` caches permission status in memory and persists it across app sessions
+- Even after granting permissions in Settings, `Permission.camera.status` returns stale `false` value
+- Calling `.request()` also returns cached status instead of checking actual system state
+- Only way to get accurate status is to let native AVFoundation attempt initialization
+
+#### Technical Details
+- Modified `lib/screens/pure/universal_camera_screen_pure.dart`:
+  - Lines 175-238: Updated `_performAsyncInitialization()` to bypass `permission_handler`
+  - Attempts camera initialization first before checking cached permission status
+  - If initialization succeeds → permissions already granted
+  - If initialization fails with permission error → request permissions via dialog
+  - After granting → retry initialization
+  - Lines 84-135: Previously fixed `_recheckPermissions()` for Settings return flow
+
+#### Manual Testing Protocol
+- Fresh app launch with permissions already granted: Camera preview appears immediately
+- Fresh app launch without permissions: Permission dialog appears, camera initializes after grant
+- Returning from Settings after granting: Camera preview appears immediately (already fixed)
+- No longer requires visiting Settings on every app launch
+
+### Fixed - Thumbnail Generation on macOS (2025-10-08)
+
+#### Bug Fixes
+- **Fixed video thumbnail generation on macOS** - Hybrid approach ensures cross-platform compatibility
+  - Primary strategy: `fc_native_video_thumbnail` plugin (fast, native performance)
+  - Fallback strategy: FFmpeg (universal, works on ALL platforms)
+  - macOS previously failed with `MissingPluginException` from plugin
+  - Now successfully generates thumbnails via FFmpeg fallback
+
+#### Implementation
+- Modified `lib/services/video_thumbnail_service.dart`:
+  - Lines 98-125: Try `fc_native_video_thumbnail` first
+  - Lines 127-136: Fallback to FFmpeg on plugin failure
+  - Lines 20-67: Added `_extractThumbnailWithFFmpeg()` method
+  - FFmpeg command: Extract frame at 100ms, resize to 640x640, JPEG quality 2
+
+#### Platform Support Matrix
+| Platform | fc_native_video_thumbnail | FFmpeg | Result |
+|----------|--------------------------|--------|--------|
+| Android  | ✅ Works                 | ✅ Available | Uses plugin |
+| iOS      | ✅ Works                 | ✅ Available | Uses plugin |
+| macOS    | ❌ MissingPluginException | ✅ Works | Uses FFmpeg |
+| Windows  | ✅ Should work           | ✅ Available | Uses plugin or FFmpeg |
+| Linux    | ❓ Unknown              | ✅ Works | Uses FFmpeg |
+
+#### Test Results
+- Unit tests: 17/17 PASS (`test/services/video_thumbnail_service_test.dart`)
+- Integration tests: 8/8 PASS (`test/services/video_event_publisher_embedded_thumbnail_test.dart`)
+- E2E tests: 3/3 PASS (`test/integration/video_thumbnail_publish_e2e_test.dart`)
+
+#### Documentation
+- Created `THUMBNAIL_SOLUTION.md` with comprehensive implementation details
+- Includes FFmpeg command reference, testing protocol, and future improvements
+
 ### Fixed - Home Feed Empty State (2025-10-04)
 
 #### Bug Fixes

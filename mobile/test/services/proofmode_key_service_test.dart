@@ -12,13 +12,15 @@ void main() {
   group('ProofModeKeyService', () {
     late ProofModeKeyService keyService;
     late TestFeatureFlagService testFlagService;
+    late MockSecureStorage sharedStorage; // Shared across service instances for persistence tests
 
     setUpAll(() async {
       await setupTestEnvironment();
     });
 
     setUp(() async {
-      keyService = ProofModeKeyService(secureStorage: MockSecureStorage());
+      sharedStorage = MockSecureStorage();
+      keyService = ProofModeKeyService(secureStorage: sharedStorage);
       testFlagService = await TestFeatureFlagService.create();
       ProofModeConfig.initialize(testFlagService);
 
@@ -60,7 +62,8 @@ void main() {
         expect(keyPair!.publicKey, isNotEmpty);
         expect(keyPair.privateKey, isNotEmpty);
         expect(keyPair.fingerprint, isNotEmpty);
-        expect(keyPair.fingerprint.length, equals(16));
+        // Real PGP fingerprints are 40 hex characters
+        expect(keyPair.fingerprint.length, greaterThanOrEqualTo(16));
       });
 
       test('should not regenerate keys if they already exist', () async {
@@ -97,10 +100,15 @@ void main() {
 
         final keyPair = await keyService.generateKeyPair();
 
-        expect(keyPair.publicKey, startsWith('MOCK_PUBLIC_'));
-        expect(keyPair.privateKey, startsWith('MOCK_PRIVATE_'));
-        expect(keyPair.fingerprint, hasLength(16));
+        // Real PGP keys are armored format
+        expect(keyPair.publicKey, contains('-----BEGIN PGP PUBLIC KEY BLOCK-----'));
+        expect(keyPair.publicKey, contains('-----END PGP PUBLIC KEY BLOCK-----'));
+        expect(keyPair.privateKey, contains('-----BEGIN PGP PRIVATE KEY BLOCK-----'));
+        expect(keyPair.privateKey, contains('-----END PGP PRIVATE KEY BLOCK-----'));
+
+        // Real PGP fingerprints are hex (uppercase)
         expect(keyPair.fingerprint, matches(RegExp(r'^[0-9A-F]+$')));
+        expect(keyPair.fingerprint.length, greaterThanOrEqualTo(16));
         expect(keyPair.createdAt, isA<DateTime>());
       });
 
@@ -109,8 +117,8 @@ void main() {
 
         final originalKeyPair = await keyService.generateKeyPair();
 
-        // Create new service instance to test persistence
-        final newKeyService = ProofModeKeyService();
+        // Create new service instance with same shared storage to test persistence
+        final newKeyService = ProofModeKeyService(secureStorage: sharedStorage);
         final retrievedKeyPair = await newKeyService.getKeyPair();
 
         expect(retrievedKeyPair, isNotNull);
@@ -168,7 +176,9 @@ void main() {
 
         expect(signature, isNotNull);
         expect(signature!.signature, isNotEmpty);
-        expect(signature.signature, startsWith('MOCK_SIG_'));
+        // Real PGP signatures are armored format
+        expect(signature.signature, contains('-----BEGIN PGP SIGNATURE-----'));
+        expect(signature.signature, contains('-----END PGP SIGNATURE-----'));
         expect(signature.publicKeyFingerprint, isNotEmpty);
         expect(signature.signedAt, isA<DateTime>());
       });
@@ -191,18 +201,29 @@ void main() {
         expect(signature, isNull);
       });
 
-      test('should generate consistent signatures for same data', () async {
+      test('should generate non-deterministic signatures (includes timestamp)', () async {
         testFlagService.setFlag('proofmode_crypto', true);
 
         await keyService.generateKeyPair();
         const testData = 'consistent test data';
 
         final signature1 = await keyService.signData(testData);
+        await Future.delayed(Duration(milliseconds: 100)); // Ensure different timestamp
         final signature2 = await keyService.signData(testData);
 
-        expect(signature1!.signature, equals(signature2!.signature));
+        // Real PGP signatures include timestamps and salts, so they're unique each time
+        // This is CORRECT behavior (prevents replay attacks)
+        expect(signature1!.signature, isNot(equals(signature2!.signature)));
+
+        // But both should use the same key
         expect(signature1.publicKeyFingerprint,
             equals(signature2.publicKeyFingerprint));
+
+        // Both signatures should still verify correctly
+        final isValid1 = await keyService.verifySignature(testData, signature1);
+        final isValid2 = await keyService.verifySignature(testData, signature2);
+        expect(isValid1, isTrue);
+        expect(isValid2, isTrue);
       });
 
       test('should generate different signatures for different data', () async {

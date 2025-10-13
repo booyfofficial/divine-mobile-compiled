@@ -1,9 +1,7 @@
-// ABOUTME: Utility functions for Nostr key encoding and decoding (bech32 npub/nsec format)
-// ABOUTME: Handles conversion between hex keys and human-readable bech32 format per NIP-19
+// ABOUTME: Minimal wrapper utilities for Nostr key operations using nostr_sdk
+// ABOUTME: Delegates to Nip19 for bech32 encoding/decoding per NIP-19
 
-import 'dart:typed_data';
-import 'package:bech32/bech32.dart';
-import 'package:crypto/crypto.dart';
+import 'package:nostr_sdk/nostr_sdk.dart';
 import 'package:nostr_sdk/client_utils/keys.dart' as nostr_keys;
 
 /// Exception thrown when encoding/decoding operations fail
@@ -16,6 +14,11 @@ class NostrEncodingException implements Exception {
 }
 
 /// Utility class for Nostr key encoding operations
+///
+/// This is a thin wrapper around nostr_sdk's Nip19 class that provides:
+/// - Type-safe decode functions (throw on wrong type)
+/// - Display helpers (maskKey, isValidHexKey)
+/// - Consistent error handling with NostrEncodingException
 class NostrEncoding {
   /// Encode a hex public key to npub format (bech32)
   ///
@@ -28,15 +31,7 @@ class NostrEncoding {
     }
 
     try {
-      // Convert hex to bytes
-      final bytes = _hexToBytes(hexPubkey);
-
-      // Convert bytes to 5-bit groups for bech32
-      final fiveBitData = _convertTo5BitGroups(bytes);
-
-      // Encode with 'npub' prefix
-      final bech32Data = bech32.encode(Bech32('npub', fiveBitData));
-      return bech32Data;
+      return Nip19.encodePubKey(hexPubkey);
     } catch (e) {
       throw NostrEncodingException('Failed to encode public key: $e');
     }
@@ -52,25 +47,20 @@ class NostrEncoding {
     }
 
     try {
-      final decoded = bech32.decode(npub);
-
-      if (decoded.hrp != 'npub') {
-        throw const NostrEncodingException('Invalid npub prefix');
+      if (!Nip19.isPubkey(npub)) {
+        throw const NostrEncodingException('Invalid npub format');
       }
 
-      // Convert 5-bit groups back to bytes
-      final bytes = _convertFrom5BitGroups(decoded.data);
+      final hexKey = Nip19.decode(npub);
 
-      // Convert bytes back to hex
-      final hexKey = _bytesToHex(bytes);
-
-      if (hexKey.length != 64) {
+      if (hexKey.isEmpty || hexKey.length != 64) {
         throw const NostrEncodingException(
             'Decoded public key has invalid length');
       }
 
       return hexKey;
     } catch (e) {
+      if (e is NostrEncodingException) rethrow;
       throw NostrEncodingException('Failed to decode npub: $e');
     }
   }
@@ -86,15 +76,7 @@ class NostrEncoding {
     }
 
     try {
-      // Convert hex to bytes
-      final bytes = _hexToBytes(hexPrivkey);
-
-      // Convert bytes to 5-bit groups for bech32
-      final fiveBitData = _convertTo5BitGroups(bytes);
-
-      // Encode with 'nsec' prefix
-      final bech32Data = bech32.encode(Bech32('nsec', fiveBitData));
-      return bech32Data;
+      return Nip19.encodePrivateKey(hexPrivkey);
     } catch (e) {
       throw NostrEncodingException('Failed to encode private key: $e');
     }
@@ -110,50 +92,37 @@ class NostrEncoding {
     }
 
     try {
-      final decoded = bech32.decode(nsec);
-
-      if (decoded.hrp != 'nsec') {
-        throw const NostrEncodingException('Invalid nsec prefix');
+      if (!Nip19.isPrivateKey(nsec)) {
+        throw const NostrEncodingException('Invalid nsec format');
       }
 
-      // Convert 5-bit groups back to bytes
-      final bytes = _convertFrom5BitGroups(decoded.data);
+      final hexKey = Nip19.decode(nsec);
 
-      // Convert bytes back to hex
-      final hexKey = _bytesToHex(bytes);
-
-      if (hexKey.length != 64) {
+      if (hexKey.isEmpty || hexKey.length != 64) {
         throw const NostrEncodingException(
             'Decoded private key has invalid length');
       }
 
       return hexKey;
     } catch (e) {
+      if (e is NostrEncodingException) rethrow;
       throw NostrEncodingException('Failed to decode nsec: $e');
     }
   }
 
   /// Validate if a string is a valid npub
   static bool isValidNpub(String npub) {
-    try {
-      decodePublicKey(npub);
-      return true;
-    } catch (e) {
-      return false;
-    }
+    return Nip19.isPubkey(npub);
   }
 
   /// Validate if a string is a valid nsec
   static bool isValidNsec(String nsec) {
-    try {
-      decodePrivateKey(nsec);
-      return true;
-    } catch (e) {
-      return false;
-    }
+    return Nip19.isPrivateKey(nsec);
   }
 
   /// Validate if a string is a valid hex key (32 bytes = 64 hex chars)
+  ///
+  /// Note: This is a helper not provided by Nip19
   static bool isValidHexKey(String hexKey) {
     if (hexKey.length != 64) return false;
 
@@ -164,18 +133,9 @@ class NostrEncoding {
 
   /// Generate a random private key (32 bytes in hex)
   ///
-  /// Returns a secure random 64-character hex private key
-  /// WARNING: This should only be used for key generation, not for production apps
-  /// In production, use secure key generation libraries
+  /// Delegates to nostr_sdk's secure key generation
   static String generatePrivateKey() {
-    final random = List<int>.generate(
-      32,
-      (i) => DateTime.now().millisecondsSinceEpoch + i,
-    );
-
-    // Use crypto hash for better randomness
-    final digest = sha256.convert(random);
-    return digest.toString();
+    return nostr_keys.generatePrivateKey();
   }
 
   /// Derive public key from private key using secp256k1
@@ -188,39 +148,19 @@ class NostrEncoding {
     }
 
     try {
-      // Use nostr_sdk's getPublicKey which implements proper secp256k1 derivation
       return nostr_keys.getPublicKey(hexPrivkey.toLowerCase());
     } catch (e) {
       throw NostrEncodingException('Failed to derive public key: $e');
     }
   }
 
-  /// Convert hex string to bytes
-  static Uint8List _hexToBytes(String hex) {
-    if (hex.length % 2 != 0) {
-      throw const NostrEncodingException('Hex string must have even length');
-    }
-
-    final bytes = Uint8List(hex.length ~/ 2);
-    for (var i = 0; i < hex.length; i += 2) {
-      final byte = int.parse(hex.substring(i, i + 2), radix: 16);
-      bytes[i ~/ 2] = byte;
-    }
-
-    return bytes;
-  }
-
-  /// Convert bytes to hex string
-  static String _bytesToHex(List<int> bytes) =>
-      bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join('');
-
   /// Extract the key type from a bech32 encoded key
   ///
   /// Returns 'npub', 'nsec', or null if invalid
   static String? getKeyType(String bech32Key) {
     try {
-      if (bech32Key.startsWith('npub1')) return 'npub';
-      if (bech32Key.startsWith('nsec1')) return 'nsec';
+      if (Nip19.isPubkey(bech32Key)) return 'npub';
+      if (Nip19.isPrivateKey(bech32Key)) return 'nsec';
       return null;
     } catch (e) {
       return null;
@@ -230,61 +170,13 @@ class NostrEncoding {
   /// Mask a key for display purposes (show first 8 and last 4 characters)
   ///
   /// Example: npub1abc...xyz4 or 1234abcd...xyz4
+  ///
+  /// Note: This is a display helper not provided by Nip19
   static String maskKey(String key) {
     if (key.length < 12) return key;
 
     final start = key.substring(0, 8);
     final end = key.substring(key.length - 4);
     return '$start...$end';
-  }
-
-  /// Convert 8-bit bytes to 5-bit groups for bech32 encoding
-  static List<int> _convertTo5BitGroups(List<int> bytes) {
-    final result = <int>[];
-    var accumulator = 0;
-    var bits = 0;
-
-    for (final byte in bytes) {
-      accumulator = (accumulator << 8) | byte;
-      bits += 8;
-
-      while (bits >= 5) {
-        bits -= 5;
-        result.add((accumulator >> bits) & 31);
-      }
-    }
-
-    if (bits > 0) {
-      result.add((accumulator << (5 - bits)) & 31);
-    }
-
-    return result;
-  }
-
-  /// Convert 5-bit groups back to 8-bit bytes
-  static List<int> _convertFrom5BitGroups(List<int> fiveBitData) {
-    final result = <int>[];
-    var accumulator = 0;
-    var bits = 0;
-
-    for (final value in fiveBitData) {
-      if (value < 0 || value > 31) {
-        throw const NostrEncodingException('Invalid 5-bit value');
-      }
-
-      accumulator = (accumulator << 5) | value;
-      bits += 5;
-
-      if (bits >= 8) {
-        bits -= 8;
-        result.add((accumulator >> bits) & 255);
-      }
-    }
-
-    if (bits >= 5 || ((accumulator << (8 - bits)) & 255) != 0) {
-      throw const NostrEncodingException('Invalid padding in 5-bit data');
-    }
-
-    return result;
   }
 }

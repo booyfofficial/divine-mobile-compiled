@@ -4,6 +4,7 @@
 import 'dart:typed_data';
 import 'package:bech32/bech32.dart';
 import 'package:crypto/crypto.dart';
+import 'package:nostr_sdk/client_utils/keys.dart' as nostr_keys;
 
 /// Exception thrown when encoding/decoding operations fail
 class NostrEncodingException implements Exception {
@@ -177,21 +178,21 @@ class NostrEncoding {
     return digest.toString();
   }
 
-  /// Derive public key from private key
+  /// Derive public key from private key using secp256k1
   ///
   /// Takes a hex private key and returns the corresponding hex public key
-  /// Note: This is a placeholder - real implementation needs secp256k1
+  /// Uses nostr_sdk's secure secp256k1 implementation
   static String derivePublicKey(String hexPrivkey) {
     if (!isValidHexKey(hexPrivkey)) {
       throw const NostrEncodingException('Invalid private key format');
     }
 
-    // TODO: Implement actual secp256k1 public key derivation
-    // For now, return a placeholder that follows the pattern
-    // In production, this would use elliptic curve cryptography
-    throw const NostrEncodingException(
-      'Public key derivation not implemented - requires secp256k1 library',
-    );
+    try {
+      // Use nostr_sdk's getPublicKey which implements proper secp256k1 derivation
+      return nostr_keys.getPublicKey(hexPrivkey.toLowerCase());
+    } catch (e) {
+      throw NostrEncodingException('Failed to derive public key: $e');
+    }
   }
 
   /// Convert hex string to bytes

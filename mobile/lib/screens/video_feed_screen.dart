@@ -10,7 +10,7 @@ import 'package:openvine/models/video_event.dart';
 import 'package:openvine/providers/home_feed_provider.dart';
 import 'package:openvine/providers/user_profile_providers.dart';
 import 'package:openvine/providers/social_providers.dart' as social;
-import 'package:openvine/main.dart';
+import 'package:openvine/router/nav_extensions.dart';
 import 'package:openvine/theme/vine_theme.dart';
 import 'package:openvine/utils/unified_logger.dart';
 import 'package:openvine/widgets/video_page_view.dart';
@@ -504,11 +504,8 @@ class _VideoFeedScreenState extends ConsumerState<VideoFeedScreen>
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: () {
-                  // Switch to explore tab
-                  final mainNavState = mainNavigationKey.currentState;
-                  if (mainNavState != null) {
-                    mainNavState.switchToTab(2); // Explore tab index
-                  }
+                  // Navigate to explore tab using GoRouter
+                  context.goExplore();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: VineTheme.vineGreen,

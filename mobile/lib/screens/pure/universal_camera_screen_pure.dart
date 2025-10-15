@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:openvine/main.dart';
+import 'package:go_router/go_router.dart';
 import 'package:openvine/providers/video_overlay_manager_provider.dart';
 import 'package:openvine/providers/vine_recording_provider.dart';
 import 'package:openvine/screens/pure/video_metadata_screen_pure.dart';
@@ -959,15 +959,9 @@ class _UniversalCameraScreenPureState extends ConsumerState<UniversalCameraScree
           // Pop the camera screen
           Navigator.of(context).pop();
 
-          // Navigate to user's own profile (navigateToProfile also clears active video)
-          final navState = mainNavigationKey.currentState;
-          if (navState != null) {
-            navState.navigateToProfile(null);
-            Log.info('📹 Successfully navigated to profile', category: LogCategory.video);
-          } else {
-            Log.error('📹 mainNavigationKey.currentState is null!',
-                category: LogCategory.video);
-          }
+          // Navigate to user's own profile using GoRouter
+          context.go('/profile/me/0');
+          Log.info('📹 Successfully navigated to profile', category: LogCategory.video);
 
           // Reset processing flag after navigation
           setState(() {

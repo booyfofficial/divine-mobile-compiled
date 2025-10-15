@@ -14,7 +14,7 @@ import 'package:openvine/widgets/video_thumbnail_widget.dart';
 import 'package:openvine/utils/unified_logger.dart';
 import 'package:openvine/widgets/share_video_menu.dart';
 import 'package:openvine/widgets/video_metrics_tracker.dart';
-import 'package:openvine/main.dart';
+import 'package:openvine/router/nav_extensions.dart';
 import 'package:openvine/utils/string_utils.dart';
 import 'package:openvine/widgets/clickable_hashtag_text.dart';
 import 'package:openvine/widgets/proofmode_badge.dart';
@@ -535,11 +535,8 @@ class VideoOverlayActions extends ConsumerWidget {
                     onTap: () {
                       Log.info('👤 User tapped profile: videoId=${video.id.substring(0, 8)}, authorPubkey=${video.pubkey.substring(0, 8)}',
                           name: 'VideoFeedItem', category: LogCategory.ui);
-                      try {
-                        mainNavigationKey.currentState?.navigateToProfile(video.pubkey);
-                      } catch (e) {
-                        Log.error('Failed to navigate to profile: $e', name: 'VideoFeedItem', category: LogCategory.ui);
-                      }
+                      // Navigate to profile tab using GoRouter
+                      context.goProfile(video.pubkey, 0);
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

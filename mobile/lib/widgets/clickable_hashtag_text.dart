@@ -3,8 +3,7 @@
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:openvine/main.dart';
-import 'package:openvine/screens/hashtag_feed_screen.dart';
+import 'package:openvine/router/nav_extensions.dart';
 import 'package:openvine/utils/hashtag_extractor.dart';
 import 'package:openvine/utils/unified_logger.dart';
 
@@ -113,19 +112,7 @@ class ClickableHashtagText extends StatelessWidget {
     // Notify parent about video state change if callback provided
     onVideoStateChange?.call();
 
-    // Use global navigation key for hashtag navigation
-    final mainNavState = mainNavigationKey.currentState;
-
-    if (mainNavState != null) {
-      // Navigate through main navigation to maintain footer
-      mainNavState.navigateToHashtag(hashtag);
-    } else {
-      // Fallback to direct navigation
-      Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute(
-          builder: (context) => HashtagFeedScreen(hashtag: hashtag),
-        ),
-      );
-    }
+    // Navigate to hashtag tab using GoRouter
+    context.goHashtag(hashtag, 0);
   }
 }

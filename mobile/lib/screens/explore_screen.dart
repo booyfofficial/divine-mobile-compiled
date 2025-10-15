@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:openvine/main.dart';
 import 'package:openvine/models/video_event.dart';
 import 'package:openvine/providers/app_providers.dart';
 import 'package:openvine/providers/individual_video_providers.dart';
@@ -716,10 +715,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
       setState(() {
         _customTitle = title;
       });
-      // Trigger parent rebuild to update title
-      if (context.findAncestorStateOfType<MainNavigationScreenState>() != null) {
-        context.findAncestorStateOfType<MainNavigationScreenState>()!.setState(() {});
-      }
+      // Note: Title updates are now handled by router-driven app bar
     }
   }
 

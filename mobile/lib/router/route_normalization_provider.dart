@@ -4,7 +4,6 @@
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openvine/router/app_router.dart';
-import 'package:openvine/router/router_location_provider.dart';
 import 'package:openvine/router/route_utils.dart';
 
 /// Watches router location changes and redirects to canonical URLs when needed.

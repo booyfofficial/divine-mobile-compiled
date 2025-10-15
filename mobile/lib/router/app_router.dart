@@ -1,66 +1,153 @@
-// ABOUTME: GoRouter configuration for OpenVine app
-// ABOUTME: Defines all routes and their URL patterns
+// ABOUTME: GoRouter configuration with ShellRoute for per-tab state preservation
+// ABOUTME: URL is source of truth, bottom nav bound to routes
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:openvine/router/app_shell.dart';
 import 'package:openvine/screens/explore_screen_router.dart';
 import 'package:openvine/screens/hashtag_screen_router.dart';
 import 'package:openvine/screens/home_screen_router.dart';
 import 'package:openvine/screens/profile_screen_router.dart';
+import 'package:openvine/screens/pure/universal_camera_screen_pure.dart';
+import 'package:openvine/screens/settings_screen.dart';
+
+// Navigator keys for per-tab state preservation
+final _rootKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+final _homeKey = GlobalKey<NavigatorState>(debugLabel: 'home');
+final _exploreKey = GlobalKey<NavigatorState>(debugLabel: 'explore');
+final _hashtagKey = GlobalKey<NavigatorState>(debugLabel: 'hashtag');
+final _profileKey = GlobalKey<NavigatorState>(debugLabel: 'profile');
+
+/// Maps URL location to bottom nav tab index
+int tabIndexFromLocation(String loc) {
+  final uri = Uri.parse(loc);
+  final first = uri.pathSegments.isEmpty ? '' : uri.pathSegments.first;
+  switch (first) {
+    case 'home':
+      return 0;
+    case 'explore':
+      return 1;
+    case 'hashtag':
+      return 2;
+    case 'profile':
+      return 3;
+    default:
+      return 0; // fallback to home
+  }
+}
+
+/// Returns canonical base path for a given tab index
+String basePathForTab(int index) {
+  switch (index) {
+    case 0:
+      return '/home/0';
+    case 1:
+      return '/explore/0';
+    case 2:
+      return '/hashtag/trending/0'; // default hashtag
+    case 3:
+      return '/profile/me/0'; // default to own profile
+    default:
+      return '/home/0';
+  }
+}
 
 final goRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
+    navigatorKey: _rootKey,
     initialLocation: '/home/0',
     routes: [
-      GoRoute(
-        path: '/home/:index',
-        builder: (context, state) {
-          return const HomeScreenRouter();
+      // Shell keeps tab navigators alive
+      ShellRoute(
+        builder: (context, state, child) {
+          final location = state.uri.toString();
+          final current = tabIndexFromLocation(location);
+          return AppShell(
+            currentIndex: current,
+            onTap: (i) {
+              final base = basePathForTab(i);
+              if (base != location) context.go(base);
+            },
+            child: child,
+          );
         },
+        routes: [
+          // HOME tab subtree
+          GoRoute(
+            path: '/home/:index',
+            name: 'home',
+            pageBuilder: (ctx, st) => NoTransitionPage(
+              key: st.pageKey,
+              child: Navigator(
+                key: _homeKey,
+                onGenerateRoute: (r) => MaterialPageRoute(
+                  builder: (_) => const HomeScreenRouter(),
+                  settings: const RouteSettings(name: 'home-root'),
+                ),
+              ),
+            ),
+          ),
+
+          // EXPLORE tab subtree
+          GoRoute(
+            path: '/explore/:index',
+            name: 'explore',
+            pageBuilder: (ctx, st) => NoTransitionPage(
+              key: st.pageKey,
+              child: Navigator(
+                key: _exploreKey,
+                onGenerateRoute: (r) => MaterialPageRoute(
+                  builder: (_) => const ExploreScreenRouter(),
+                  settings: const RouteSettings(name: 'explore-root'),
+                ),
+              ),
+            ),
+          ),
+
+          // HASHTAG tab subtree
+          GoRoute(
+            path: '/hashtag/:tag/:index',
+            name: 'hashtag',
+            pageBuilder: (ctx, st) => NoTransitionPage(
+              key: st.pageKey,
+              child: Navigator(
+                key: _hashtagKey,
+                onGenerateRoute: (r) => MaterialPageRoute(
+                  builder: (_) => const HashtagScreenRouter(),
+                  settings: const RouteSettings(name: 'hashtag-root'),
+                ),
+              ),
+            ),
+          ),
+
+          // PROFILE tab subtree
+          GoRoute(
+            path: '/profile/:npub/:index',
+            name: 'profile',
+            pageBuilder: (ctx, st) => NoTransitionPage(
+              key: st.pageKey,
+              child: Navigator(
+                key: _profileKey,
+                onGenerateRoute: (r) => MaterialPageRoute(
+                  builder: (_) => const ProfileScreenRouter(),
+                  settings: const RouteSettings(name: 'profile-root'),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      GoRoute(
-        path: '/explore/:index',
-        builder: (context, state) {
-          return const ExploreScreenRouter();
-        },
-      ),
-      GoRoute(
-        path: '/profile/:npub/:index',
-        builder: (context, state) {
-          return const ProfileScreenRouter();
-        },
-      ),
-      GoRoute(
-        path: '/hashtag/:tag/:index',
-        builder: (context, state) {
-          return const HashtagScreenRouter();
-        },
-      ),
+
+      // Non-tab routes outside the shell (camera/settings)
       GoRoute(
         path: '/camera',
-        builder: (context, state) => const _PlaceholderScreen(title: 'Camera', index: 0),
+        builder: (_, __) => const UniversalCameraScreenPure(),
       ),
       GoRoute(
         path: '/settings',
-        builder: (context, state) => const _PlaceholderScreen(title: 'Settings', index: 0),
+        builder: (_, __) => const SettingsScreen(),
       ),
     ],
   );
 });
-
-/// Placeholder widget for testing router functionality
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.title, required this.index});
-
-  final String title;
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(child: Text('$title - Page $index')),
-    );
-  }
-}

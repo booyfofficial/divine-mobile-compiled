@@ -5,38 +5,24 @@ import 'package:flutter/material.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:video_player_media_kit/video_player_media_kit.dart';
-import 'package:openvine/models/video_event.dart';
 import 'package:openvine/providers/app_providers.dart';
 import 'package:openvine/providers/social_providers.dart' as social_providers;
-import 'package:openvine/providers/tab_visibility_provider.dart';
-import 'package:openvine/screens/activity_screen.dart';
-import 'package:openvine/screens/explore_screen.dart';
-import 'package:openvine/screens/profile_screen_scrollable.dart' as profile;
-import 'package:openvine/screens/video_feed_screen.dart';
 import 'package:openvine/screens/web_auth_screen.dart';
-import 'package:openvine/screens/settings_screen.dart';
 import 'package:openvine/services/auth_service.dart';
 import 'package:openvine/services/background_activity_manager.dart';
 import 'package:openvine/services/crash_reporting_service.dart';
-import 'package:openvine/providers/individual_video_providers.dart';
+import 'package:openvine/router/app_router.dart';
+import 'package:openvine/router/route_normalization_provider.dart';
 import 'package:openvine/services/logging_config_service.dart';
 import 'package:openvine/services/startup_performance_service.dart';
-import 'package:openvine/services/video_stop_navigator_observer.dart';
 import 'package:openvine/theme/vine_theme.dart';
 import 'package:openvine/utils/unified_logger.dart';
 import 'package:openvine/utils/log_message_batcher.dart';
 import 'package:openvine/widgets/app_lifecycle_handler.dart';
-import 'package:openvine/widgets/video_metrics_overlay.dart';
-import 'package:openvine/widgets/camera_fab.dart';
-import 'package:openvine/widgets/vine_bottom_nav.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io' if (dart.library.html) 'package:openvine/utils/platform_io_web.dart' as io;
 import 'package:openvine/network/vine_cdn_http_overrides.dart' if (dart.library.html) 'package:openvine/utils/platform_io_web.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-
-// Global navigation key for hashtag navigation
-final GlobalKey<MainNavigationScreenState> mainNavigationKey =
-    GlobalKey<MainNavigationScreenState>();
 
 Future<void> _startOpenVineApp() async {
   // Add timing logs for startup diagnostics
@@ -240,7 +226,7 @@ Future<void> _startOpenVineApp() async {
   Log.info('divine starting...', name: 'Main');
   Log.info('Log level: ${UnifiedLogger.currentLevel.name}', name: 'Main');
 
-  runApp(const DivineApp());
+  runApp(const ProviderScope(child: DivineApp()));
 }
 
 void main() {
@@ -256,27 +242,21 @@ void main() {
   });
 }
 
-class DivineApp extends StatelessWidget {
+class DivineApp extends ConsumerWidget {
   const DivineApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Activate route normalization at app root
+    ref.watch(routeNormalizationProvider);
+
     const bool crashProbe = bool.fromEnvironment('CRASHLYTICS_PROBE', defaultValue: false);
 
-    // Determine the home widget - wrap with VideoMetricsOverlay if debug mode
-    Widget homeWidget = const ResponsiveWrapper(child: AppInitializer());
-
-    // VideoMetricsOverlay fixed with StreamBuilder to prevent Stack Overflow errors
-    if (kDebugMode) {
-      homeWidget = VideoMetricsOverlay(child: homeWidget);
-    }
-
-    final app = MaterialApp(
+    final app = MaterialApp.router(
       title: 'divine',
       debugShowCheckedModeBanner: false,
       theme: VineTheme.theme,
-      home: homeWidget,
-      navigatorObservers: [VideoStopNavigatorObserver()],
+      routerConfig: ref.read(goRouterProvider),
     );
 
     Widget wrapped = AppLifecycleHandler(child: app);
@@ -297,7 +277,7 @@ class DivineApp extends StatelessWidget {
       );
     }
 
-    return ProviderScope(child: wrapped);
+    return wrapped; // ProviderScope now wraps DivineApp from outside
   }
 }
 
@@ -838,416 +818,18 @@ class _AppInitializerState extends ConsumerState<AppInitializer> {
               ),
             );
           case AuthState.authenticated:
-            return MainNavigationScreen(key: mainNavigationKey);
+            // TODO(PR8): Router handles navigation now, AppInitializer just signals ready
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
         }
       },
     );
   }
 }
 
-class MainNavigationScreen extends ConsumerStatefulWidget {
-  const MainNavigationScreen({
-    super.key,
-    this.initialTabIndex,
-    this.startingVideo,
-    this.initialHashtag,
-  });
-  final int? initialTabIndex;
-  final VideoEvent? startingVideo;
-  final String? initialHashtag;
-
-  @override
-  ConsumerState<MainNavigationScreen> createState() =>
-      MainNavigationScreenState();
-}
-
-class MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
-  int _currentIndex = 0;
-  final GlobalKey<State<VideoFeedScreen>> _feedScreenKey =
-      GlobalKey<State<VideoFeedScreen>>();
-  DateTime? _lastFeedTap;
-
-  late List<Widget> _screens; // Created once to preserve state
-  final GlobalKey<State<ExploreScreen>> _exploreScreenKey =
-      GlobalKey<State<ExploreScreen>>();
-  final GlobalKey<State<profile.ProfileScreenScrollable>> _profileScreenKey =
-      GlobalKey<State<profile.ProfileScreenScrollable>>();
-
-  // Profile viewing state
-  String? _viewingProfilePubkey; // null means viewing own profile
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Set initial tab based on whether user is following anyone
-    if (widget.initialTabIndex != null) {
-      _currentIndex = widget.initialTabIndex!;
-    } else {
-      // Default to feed tab - social data will load and update the feed
-      _currentIndex = 0;
-      Log.info(
-        'MainNavigation: Defaulting to feed tab',
-        name: 'MainNavigation',
-        category: LogCategory.ui,
-      );
-    }
-
-    // Initialize tab visibility provider with initial tab
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(tabVisibilityProvider.notifier).setActiveTab(_currentIndex);
-    });
-
-    // Create screens once - IndexedStack will preserve their state
-    // ProfileScreen is created lazily to avoid unnecessary profile stats loading during startup
-    // UNLESS we're starting on the profile tab
-    final auth = ref.read(authServiceProvider);
-    _screens = [
-      VideoFeedScreen(
-        key: _feedScreenKey,
-        startingVideo: widget.startingVideo,
-      ),
-      const ActivityScreen(),
-      ExploreScreen(key: _exploreScreenKey),
-      // If starting on profile tab, create it immediately; otherwise use placeholder
-      widget.initialTabIndex == 3
-          ? profile.ProfileScreenScrollable(key: ValueKey('profile_${auth.currentPublicKeyHex ?? 'own'}'), profilePubkey: null)
-          : Container(),
-    ];
-
-    Log.info(
-        '📱 MainNavigation: Created screens array with ${_screens.length} screens',
-        name: 'MainNavigation',
-        category: LogCategory.ui);
-    Log.info(
-        '📱 MainNavigation: Screen at index 0 is ${_screens[0].runtimeType}',
-        name: 'MainNavigation',
-        category: LogCategory.ui);
-
-    // If initial hashtag is provided, navigate to explore tab after build
-    if (widget.initialHashtag != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        navigateToHashtag(widget.initialHashtag!);
-      });
-    }
-  }
-
-  void _onTabTapped(int index) {
-    Log.info('🔄 Tab navigation: current=$_currentIndex, new=$index',
-        name: 'MainNavigation', category: LogCategory.system);
-
-    // Update tab visibility provider FIRST to trigger reactive video pausing
-    ref.read(tabVisibilityProvider.notifier).setActiveTab(index);
-
-    // Let tab visibility provider handle video pausing reactively
-    // No need for manual pause calls - VideoFeedItem handles this via _getTabActiveStatus()
-
-    // Notify screens of visibility changes (schedule to avoid provider re-entrancy)
-    if (_currentIndex == 2 && index != 2) {
-      // Leaving explore screen - exit feed mode if active
-      final exploreState = _exploreScreenKey.currentState as dynamic;
-      Log.info('🚪 Leaving explore tab: exploreState=$exploreState, isInFeedMode=${exploreState?.isInFeedMode}',
-          name: 'MainNavigation', category: LogCategory.system);
-      if (exploreState != null && exploreState.isInFeedMode == true) {
-        Log.info('✅ Exiting feed mode in explore screen',
-            name: 'MainNavigation', category: LogCategory.system);
-        exploreState.exitFeedMode();
-      }
-      Future.microtask(() => exploreState?.onScreenHidden());
-    } else if (_currentIndex != 2 && index == 2) {
-      // Entering explore screen
-      Log.info('📍 Entering explore tab',
-          name: 'MainNavigation', category: LogCategory.system);
-      Future.microtask(() => (_exploreScreenKey.currentState as dynamic)?.onScreenVisible());
-    }
-
-    // When tapping the profile tab directly, always show current user's profile
-    if (index == 3) {
-      Log.info('👆 Profile tab tapped - resetting to own profile', name: 'MainNavigation', category: LogCategory.ui);
-      // Reset to current user's profile when tapping the tab
-      final container = ProviderScope.containerOf(context);
-      final currentUserPubkey = container.read(authServiceProvider).currentPublicKeyHex;
-      _viewingProfilePubkey = null;
-      setState(() {
-        // Use ValueKey with actual user pubkey to force recreation when switching profiles
-        _screens[3] = profile.ProfileScreenScrollable(
-          key: ValueKey('profile_${currentUserPubkey ?? 'own'}'),
-          profilePubkey: null
-        );
-      });
-    }
-
-    // Check for double-tap on feed icon
-    if (index == 0 && _currentIndex == 0) {
-      final now = DateTime.now();
-      if (_lastFeedTap != null &&
-          now.difference(_lastFeedTap!).inMilliseconds < 500) {
-        // Double tap detected - scroll to top and refresh
-        _scrollToTopAndRefresh();
-        _lastFeedTap = null; // Reset to prevent triple tap
-        return;
-      }
-      _lastFeedTap = now;
-    }
-
-    // Check for tap on explore tab while already on explore tab
-    if (index == 2 && _currentIndex == 2) {
-      Log.debug(
-          '🔄 Explore tab tapped while on explore (index: $index, current: $_currentIndex)',
-          name: 'MainNavigation',
-          category: LogCategory.ui);
-      // Tell explore screen to exit feed mode and return to grid (only if in feed mode)
-      final exploreState = _exploreScreenKey.currentState as dynamic;
-      if (exploreState != null) {
-        Log.debug(
-            '✅ Found explore screen state, isInFeedMode: ${exploreState.isInFeedMode}',
-            name: 'MainNavigation',
-            category: LogCategory.ui);
-        if (exploreState.isInFeedMode) {
-          Log.debug('🔄 Calling exitFeedMode() to return to grid',
-              name: 'MainNavigation', category: LogCategory.ui);
-          exploreState.exitFeedMode();
-        } else {
-          Log.debug('📱 Already in grid mode, no action needed',
-              name: 'MainNavigation', category: LogCategory.ui);
-        }
-      } else {
-        Log.warning('❌ Explore screen state is null - key: $_exploreScreenKey',
-            name: 'MainNavigation', category: LogCategory.ui);
-      }
-      return;
-    }
-
-    // Tab visibility provider will handle pausing via reactive VideoFeedItem updates
-    // No manual pause calls needed
-
-    // Tab visibility provider will handle resuming via reactive VideoFeedItem updates
-    // No manual resume calls needed
-
-    setState(() {
-      _currentIndex = index;
-    });
-  }
-
-  void _scrollToTopAndRefresh() {
-    try {
-      // Use the static method to scroll to top and refresh
-      VideoFeedScreen.scrollToTopAndRefresh(_feedScreenKey);
-      Log.info('🔄 Double-tap: Scrolling to top and refreshing feed',
-          name: 'Main', category: LogCategory.ui);
-    } catch (e) {
-      Log.error('Error scrolling to top and refreshing: $e',
-          name: 'Main', category: LogCategory.ui);
-    }
-  }
-
-  void navigateToHashtag(String hashtag) {
-    // Switch to explore tab
-    setState(() {
-      _currentIndex = 2;
-    });
-
-    // Pass hashtag to explore screen
-    (_exploreScreenKey.currentState as dynamic)?.showHashtagVideos(hashtag);
-  }
-
-  /// Public method to switch to a specific tab
-  void switchToTab(int index) {
-    if (index >= 0 && index < _screens.length) {
-      _onTabTapped(index);
-    }
-  }
-
-  /// Navigate to a user's profile
-  /// Called from other screens to view a specific user's profile
-  void navigateToProfile(String? profilePubkey) {
-    Log.info('🚀 navigateToProfile called: pubkey=${profilePubkey?.substring(0, 8) ?? 'own'}, currentIndex=$_currentIndex, currentViewingPubkey=${_viewingProfilePubkey?.substring(0, 8) ?? 'null'}',
-        name: 'MainNavigation', category: LogCategory.ui);
-
-    // IMMEDIATELY pause current video on profile navigation
-    final container = ProviderScope.containerOf(context);
-    // Clear active video when navigating away from feed content
-    container.read(activeVideoProvider.notifier).clearActiveVideo();
-
-    setState(() {
-      _viewingProfilePubkey = profilePubkey;
-      // Use ValueKey with the pubkey to force widget recreation when viewing different profiles
-      _screens[3] = profile.ProfileScreenScrollable(
-        key: ValueKey('profile_${profilePubkey ?? 'own'}'),
-        profilePubkey: _viewingProfilePubkey,
-      );
-      _currentIndex = 3;
-    });
-
-    Log.info('✅ navigateToProfile complete: switched to profile tab with pubkey=${_viewingProfilePubkey?.substring(0, 8) ?? 'own'}',
-        name: 'MainNavigation', category: LogCategory.ui);
-  }
-
-  /// Navigate to search functionality within explore
-  /// Called from other screens to open search functionality
-  void navigateToSearch() {
-    // Switch to explore tab (index 2)
-    _onTabTapped(2);
-
-    // Enter search mode in explore screen
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      (_exploreScreenKey.currentState as dynamic)?.enterSearchMode();
-    });
-  }
-
-  /// Play a specific video in the explore tab with context videos
-  /// Called from search results to play a video within its result set
-  void playSpecificVideo(List<VideoEvent> videos, int startIndex) {
-    // IMMEDIATELY pause current video before playing specific video
-    final container = ProviderScope.containerOf(context);
-    // Clear active video before switching context
-    container.read(activeVideoProvider.notifier).clearActiveVideo();
-    Log.info('⏸️ Paused current video before playing specific video',
-        name: 'Main', category: LogCategory.system);
-
-    // Switch to explore tab first
-    _onTabTapped(2);
-
-    // After switching tabs, play the specific video with its context
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (startIndex < videos.length) {
-        (_exploreScreenKey.currentState as dynamic)?.playSpecificVideo(videos[startIndex], videos, startIndex);
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    Log.info('📱 MainNavigation: build() - currentIndex=$_currentIndex',
-        name: 'MainNavigation', category: LogCategory.ui);
-
-    // React to social data readiness
-    ref.listen(social_providers.socialProvider, (prev, next) {
-      if (mounted &&
-          next.isInitialized &&
-          next.followingPubkeys.isEmpty &&
-          _currentIndex != 2) {
-        // Use post frame callback to avoid setState during build
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() {
-              _currentIndex = 2;
-            });
-            Log.info(
-              'MainNavigation: User not following anyone, switching to explore tab',
-              name: 'MainNavigation',
-              category: LogCategory.ui,
-            );
-          }
-        });
-      }
-    });
-
-    // Determine title based on current tab
-    String title;
-    Widget titleWidget;
-    switch (_currentIndex) {
-      case 0:
-        title = 'diVine';
-        titleWidget = Text(
-          title,
-          style: const TextStyle(
-            fontFamily: 'Pacifico',
-            color: VineTheme.whiteText,
-            fontSize: 24,
-          ),
-        );
-        break;
-      case 1:
-        title = 'Activity';
-        titleWidget = Text(
-          title,
-          style: const TextStyle(
-            fontFamily: 'Pacifico',
-            color: VineTheme.whiteText,
-            fontSize: 24,
-          ),
-        );
-        break;
-      case 2:
-        // Check if ExploreScreen has a custom title
-        final exploreState = _exploreScreenKey.currentState as dynamic;
-        final customTitle = exploreState?.customTitle as String?;
-
-        title = customTitle ?? 'Explore';
-
-        titleWidget = Text(
-          title,
-          style: const TextStyle(
-            fontFamily: 'Pacifico',
-            color: VineTheme.whiteText,
-            fontSize: 24,
-          ),
-        );
-        break;
-      case 3:
-        // Check if ProfileScreen has a custom title
-        final profileState = _profileScreenKey.currentState as dynamic;
-        final customTitle = profileState?.customTitle as String?;
-
-        title = customTitle ?? 'Profile';
-        titleWidget = Text(
-          title,
-          style: const TextStyle(
-            fontFamily: 'Pacifico',
-            color: VineTheme.whiteText,
-            fontSize: 24,
-          ),
-        );
-        break;
-      default:
-        title = 'diVine';
-        titleWidget = Text(
-          title,
-          style: const TextStyle(
-            fontFamily: 'Pacifico',
-            color: VineTheme.whiteText,
-            fontSize: 24,
-          ),
-        );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: VineTheme.vineGreen,
-        title: titleWidget,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.settings, color: VineTheme.whiteText),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SettingsScreen(),
-              ),
-            );
-          },
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: VineTheme.whiteText),
-            onPressed: navigateToSearch,
-          ),
-        ],
-      ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: VineBottomNav(
-        currentIndex: _currentIndex,
-        onTap: _onTabTapped,
-      ),
-      floatingActionButton: const CameraFAB(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-    );
-  }
-}
 
 /// ResponsiveWrapper adapts app size based on available screen space
 class ResponsiveWrapper extends StatefulWidget {

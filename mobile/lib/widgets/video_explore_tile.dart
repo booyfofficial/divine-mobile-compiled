@@ -3,8 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:openvine/main.dart';
 import 'package:openvine/models/video_event.dart';
+import 'package:openvine/router/nav_extensions.dart';
 import 'package:openvine/providers/app_providers.dart';
 import 'package:openvine/utils/unified_logger.dart';
 import 'package:openvine/widgets/proofmode_badge.dart';
@@ -141,13 +141,14 @@ class VideoExploreTile extends ConsumerWidget {
         profile?.name ??
         '@${video.pubkey.substring(0, 8)}...';
 
-    return GestureDetector(
-      onTap: () {
-        Log.verbose('Navigating to profile from explore tile: ${video.pubkey}',
-            name: 'VideoExploreTile', category: LogCategory.ui);
-        // Use main navigation to switch to profile tab
-        mainNavigationKey.currentState?.navigateToProfile(video.pubkey);
-      },
+    return Builder(
+      builder: (context) => GestureDetector(
+        onTap: () {
+          Log.verbose('Navigating to profile from explore tile: ${video.pubkey}',
+              name: 'VideoExploreTile', category: LogCategory.ui);
+          // Navigate to profile tab using GoRouter
+          context.goProfile(video.pubkey, 0);
+        },
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -187,6 +188,7 @@ class VideoExploreTile extends ConsumerWidget {
           ],
         ],
       ),
+    ),
     );
   }
 }

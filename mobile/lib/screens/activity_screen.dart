@@ -2,10 +2,10 @@
 // ABOUTME: Displays notifications feed similar to original Vine's activity tab
 
 import 'package:flutter/material.dart';
-import 'package:openvine/main.dart';
 import 'package:openvine/models/notification_model.dart';
 import 'package:openvine/models/user_profile.dart' as models;
 import 'package:openvine/models/video_event.dart';
+import 'package:openvine/router/nav_extensions.dart';
 import 'package:openvine/screens/pure/explore_video_screen_pure.dart';
 import 'package:openvine/widgets/user_avatar.dart';
 import 'package:openvine/services/video_event_service.dart';
@@ -282,8 +282,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen>
   }
 
   void _openUserProfile(String pubkey) {
-    // Use main navigation to switch to profile tab
-    mainNavigationKey.currentState?.navigateToProfile(pubkey);
+    // Navigate to profile tab using GoRouter
+    context.goProfile(pubkey, 0);
   }
 
   void _openVideo(VideoEvent video, VideoEventService videoEventService) {

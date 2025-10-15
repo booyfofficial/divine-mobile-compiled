@@ -146,7 +146,7 @@ void main() {
 
         // Should render successfully
         expect(find.byType(ExploreScreen), findsOneWidget);
-        // "Explore" title is now in parent MainNavigationScreen, not in ExploreScreen itself
+        // "Explore" title is now in AppShell app bar (router-driven), not in ExploreScreen itself
         expect(find.text('Popular Now'), findsOneWidget);
         expect(find.text('Trending'), findsOneWidget);
         expect(find.text("Editor's Pick"), findsOneWidget);

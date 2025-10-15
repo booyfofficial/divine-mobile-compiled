@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openvine/models/video_event.dart';
-import 'package:openvine/providers/individual_video_providers.dart' hide activeVideoProvider;
 import 'package:openvine/providers/computed_active_video_provider.dart';
 import 'package:openvine/widgets/video_page_view.dart';
 import '../builders/test_video_event_builder.dart';

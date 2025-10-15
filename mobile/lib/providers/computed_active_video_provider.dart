@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openvine/models/video_event.dart';
 import 'package:openvine/providers/app_foreground_provider.dart';
 import 'package:openvine/providers/app_providers.dart';
-import 'package:openvine/services/video_event_service.dart';
 
 /// Page context - which screen and page are currently showing
 class PageContext {

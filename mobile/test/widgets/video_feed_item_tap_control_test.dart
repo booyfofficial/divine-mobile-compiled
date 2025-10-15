@@ -1,12 +1,10 @@
 // ABOUTME: Tests for VideoFeedItem tap-to-pause/play functionality
 // ABOUTME: Verifies taps on video surface toggle playback, while overlay buttons remain functional
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openvine/models/video_event.dart';
 import 'package:openvine/providers/individual_video_providers.dart';
-import 'package:openvine/widgets/video_feed_item.dart';
 
 void main() {
   group('VideoFeedItem Tap Control', () {

@@ -144,8 +144,8 @@ void main() {
         await tester.pump(const Duration(seconds: 2));
         await controller.stopRecording();
 
-        // Finish recording
-        final videoFile = await controller.finishRecording();
+        // Finish recording (returns tuple: (File?, ProofManifest?))
+        final (videoFile, _) = await controller.finishRecording();
 
         // Should return valid file
         expect(videoFile, isNotNull);

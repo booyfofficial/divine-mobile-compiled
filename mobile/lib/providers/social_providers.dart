@@ -8,6 +8,7 @@ import 'package:nostr_sdk/event.dart';
 import 'package:nostr_sdk/filter.dart';
 import 'package:openvine/providers/app_providers.dart';
 import 'package:openvine/providers/home_feed_provider.dart';
+import 'package:openvine/services/auth_service.dart';
 import 'package:openvine/state/social_state.dart';
 import 'package:openvine/utils/unified_logger.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -29,10 +30,34 @@ class SocialNotifier extends _$SocialNotifier {
   // Save subscription manager for safe disposal
   dynamic _subscriptionManager;
 
+  // Step 3: Idempotency guard to prevent duplicate fetch attempts
+  Completer<void>? _contactsFetchInFlight;
+
   @override
   SocialState build() {
     // Save subscription manager reference before disposal callback
     _subscriptionManager = ref.read(subscriptionManagerProvider);
+
+    // Step 2: Listen to auth state changes and react immediately
+    // fireImmediately ensures we catch the current state even if already authenticated
+    ref.listen(
+      authServiceProvider,
+      (previous, current) {
+        final previousState = previous?.authState;
+        final currentState = current.authState;
+
+        Log.info(
+            '🔔 SocialNotifier: Auth state transition: ${previousState?.name ?? 'null'} → ${currentState.name}',
+            name: 'SocialNotifier',
+            category: LogCategory.system);
+
+        // When auth becomes authenticated, fetch contacts if not already done
+        if (currentState == AuthState.authenticated) {
+          _ensureContactsFetched();
+        }
+      },
+      fireImmediately: true,
+    );
 
     ref.onDispose(_cleanupSubscriptions);
 
@@ -89,6 +114,90 @@ class SocialNotifier extends _$SocialNotifier {
     }
   }
 
+  /// Step 3: Idempotent contact fetch - safe to call multiple times
+  /// Handles auth race conditions by checking actual auth state, not boolean
+  Future<void> _ensureContactsFetched() async {
+    // If already fetching, wait for that operation to complete
+    if (_contactsFetchInFlight != null) {
+      Log.info(
+          '⏳ SocialNotifier: Contact fetch already in progress, waiting...',
+          name: 'SocialNotifier',
+          category: LogCategory.system);
+      return _contactsFetchInFlight!.future;
+    }
+
+    // If already initialized with contacts, nothing to do
+    if (state.isInitialized && state.followingPubkeys.isNotEmpty) {
+      Log.info(
+          '✅ SocialNotifier: Contacts already fetched (${state.followingPubkeys.length} following)',
+          name: 'SocialNotifier',
+          category: LogCategory.system);
+      return;
+    }
+
+    final authService = ref.read(authServiceProvider);
+
+    // Step 1: Treat checking as "unknown", not false
+    // If auth is still checking, we don't know yet - return early
+    if (authService.authState == AuthState.checking) {
+      Log.info(
+          '⏸️ SocialNotifier: Auth state is checking - will retry when authenticated',
+          name: 'SocialNotifier',
+          category: LogCategory.system);
+      return;
+    }
+
+    // Step 4: Fix misleading log - distinguish between checking and unauthenticated
+    if (authService.authState != AuthState.authenticated) {
+      Log.info(
+          '❌ SocialNotifier: Not authenticated (state: ${authService.authState.name}) - skipping contact fetch',
+          name: 'SocialNotifier',
+          category: LogCategory.system);
+      return;
+    }
+
+    // Create completer to guard against concurrent calls
+    _contactsFetchInFlight = Completer<void>();
+
+    try {
+      Log.info('🚀 SocialNotifier: Starting contact fetch...',
+          name: 'SocialNotifier', category: LogCategory.system);
+
+      // Step 7: Temporary verification log
+      Log.info(
+          '🔍 [TEMP] Auth status at fetch time: ${authService.authState.name}, pubkey: ${authService.currentPublicKeyHex?.substring(0, 8) ?? 'null'}',
+          name: 'SocialNotifier',
+          category: LogCategory.system);
+
+      // Load cached following list FIRST for instant UI display
+      await _loadFollowingListFromCache();
+
+      Log.info(
+          '🤝 SocialNotifier: Fetching contact list for authenticated user (cached: ${state.followingPubkeys.length} users)',
+          name: 'SocialNotifier',
+          category: LogCategory.system);
+
+      // Load follow list and user's own reactions in parallel
+      await Future.wait([
+        fetchCurrentUserFollowList(),
+        fetchAllUserReactions(), // Bulk load user's own reactions
+      ]);
+
+      Log.info(
+          '✅ SocialNotifier: Contact list fetch complete, following=${state.followingPubkeys.length}, liked=${state.likedEventIds.length}, reposted=${state.repostedEventIds.length}',
+          name: 'SocialNotifier',
+          category: LogCategory.system);
+
+      _contactsFetchInFlight!.complete();
+    } catch (e) {
+      Log.error('❌ SocialNotifier: Contact fetch failed: $e',
+          name: 'SocialNotifier', category: LogCategory.system);
+      _contactsFetchInFlight!.completeError(e);
+    } finally {
+      _contactsFetchInFlight = null;
+    }
+  }
+
   /// Refresh home feed when following list changes
   void _refreshHomeFeed() {
     try {
@@ -102,6 +211,7 @@ class SocialNotifier extends _$SocialNotifier {
   }
 
   /// Initialize the service
+  /// NOTE: Contact fetching now handled by _ensureContactsFetched() called from auth listener
   Future<void> initialize() async {
     if (state.isInitialized) {
       Log.info(
@@ -119,37 +229,15 @@ class SocialNotifier extends _$SocialNotifier {
     try {
       final authService = ref.read(authServiceProvider);
 
+      // Step 4: Fix misleading log to show actual auth state
       Log.info(
-          '🤝 SocialNotifier: Auth state = ${authService.isAuthenticated}, pubkey = ${authService.currentPublicKeyHex?.substring(0, 8)}',
+          '🤝 SocialNotifier: Auth state = ${authService.authState.name}, pubkey = ${authService.currentPublicKeyHex?.substring(0, 8) ?? 'null'}',
           name: 'SocialNotifier',
           category: LogCategory.system);
 
-      // Initialize current user's social data if authenticated
-      if (authService.isAuthenticated &&
-          authService.currentPublicKeyHex != null) {
-        // Load cached following list FIRST for instant UI display
-        await _loadFollowingListFromCache();
-
-        Log.info(
-            '🤝 SocialNotifier: Fetching contact list for authenticated user (cached: ${state.followingPubkeys.length} users)',
-            name: 'SocialNotifier',
-            category: LogCategory.system);
-        // Load follow list and user's own reactions in parallel
-        await Future.wait([
-          fetchCurrentUserFollowList(),
-          fetchAllUserReactions(), // Bulk load user's own reactions
-        ]);
-
-        Log.info(
-            '🤝 SocialNotifier: Contact list fetch complete, following=${state.followingPubkeys.length}, liked=${state.likedEventIds.length}, reposted=${state.repostedEventIds.length}',
-            name: 'SocialNotifier',
-            category: LogCategory.system);
-      } else {
-        Log.warning(
-            '🤝 SocialNotifier: Skipping contact list fetch - not authenticated',
-            name: 'SocialNotifier',
-            category: LogCategory.system);
-      }
+      // Step 1: Use _ensureContactsFetched() which properly handles auth state checking
+      // The auth listener will also call this when auth transitions to authenticated
+      await _ensureContactsFetched();
 
       state = state.copyWith(
         isInitialized: true,

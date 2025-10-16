@@ -319,9 +319,31 @@ class ProfileVideosNotifier extends _$ProfileVideosNotifier {
       },
     );
 
-    // Wait for EOSE or onDone instead of using timeout
-    // Timeout was causing initial loads to complete with 0 videos before relay responded
-    await completer.future;
+    // Wait for EOSE/onDone with a 30-second safety timeout
+    // Old 3-second timeout was too short and caused empty loads
+    // 30 seconds allows relay time to respond while preventing infinite hangs
+    try {
+      await completer.future.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          Log.warning(
+              '⏱️ Streaming load timed out after 30s for ${pubkey.substring(0, 8)} with ${receivedVideos.length} videos',
+              name: 'ProfileVideosProvider',
+              category: LogCategory.ui);
+          if (!completer.isCompleted) {
+            _finalizeStreamingLoad(pubkey, receivedVideos);
+            completer.complete();
+          }
+        },
+      );
+    } catch (e) {
+      Log.error('Error during streaming load: $e',
+          name: 'ProfileVideosProvider', category: LogCategory.ui);
+      if (!completer.isCompleted) {
+        _finalizeStreamingLoad(pubkey, receivedVideos);
+        completer.complete();
+      }
+    }
   }
 
   /// Update UI state immediately when each video arrives during streaming
@@ -483,8 +505,29 @@ class ProfileVideosNotifier extends _$ProfileVideosNotifier {
       },
     );
 
-    // Wait for EOSE or onDone instead of using timeout
-    await completer.future;
+    // Wait for EOSE/onDone with a 30-second safety timeout
+    try {
+      await completer.future.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          Log.warning(
+              '⏱️ Load more timed out after 30s for ${_currentPubkey!.substring(0, 8)} with ${newVideos.length} new videos',
+              name: 'ProfileVideosProvider',
+              category: LogCategory.ui);
+          if (!completer.isCompleted) {
+            _finalizeLoadMoreStreaming(newVideos);
+            completer.complete();
+          }
+        },
+      );
+    } catch (e) {
+      Log.error('Error during load more: $e',
+          name: 'ProfileVideosProvider', category: LogCategory.ui);
+      if (!completer.isCompleted) {
+        _finalizeLoadMoreStreaming(newVideos);
+        completer.complete();
+      }
+    }
   }
 
   /// Update UI state immediately when each additional video arrives during load more streaming

@@ -2164,6 +2164,32 @@ class VideoEventService extends ChangeNotifier {
         break;
     }
 
+    // Populate keyed buckets for route-aware feeds
+    if (subscriptionType == SubscriptionType.hashtag) {
+      // Add video to each of its hashtag buckets
+      for (final tag in videoEvent.hashtags) {
+        final bucket = _hashtagBuckets.putIfAbsent(tag, () => []);
+        if (!bucket.any((e) => e.id == videoEvent.id)) {
+          if (isHistorical) {
+            bucket.add(videoEvent);
+          } else {
+            bucket.insert(0, videoEvent);
+          }
+        }
+      }
+    } else if (subscriptionType == SubscriptionType.profile) {
+      // Add video to author's bucket
+      final authorHex = videoEvent.pubkey;
+      final bucket = _authorBuckets.putIfAbsent(authorHex, () => []);
+      if (!bucket.any((e) => e.id == videoEvent.id)) {
+        if (isHistorical) {
+          bucket.add(videoEvent);
+        } else {
+          bucket.insert(0, videoEvent);
+        }
+      }
+    }
+
     // Sort lists using enhanced engagement-based scoring:
     // - Combines loops, comments, likes, and reposts
     // - Gives higher weight to meaningful engagement (comments > likes > reposts > loops)

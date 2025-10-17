@@ -1,13 +1,15 @@
-// ABOUTME: Pure explore video screen using VideoPageView widget
-// ABOUTME: Simplified implementation using consolidated video feed component
+// ABOUTME: Pure explore video screen using VideoFeedItem directly in PageView
+// ABOUTME: Simplified implementation with direct VideoFeedItem usage
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openvine/models/video_event.dart';
-import 'package:openvine/widgets/video_page_view.dart';
+import 'package:openvine/router/nav_extensions.dart';
+import 'package:openvine/widgets/video_feed_item.dart';
 import 'package:openvine/utils/unified_logger.dart';
+import 'package:openvine/mixins/pagination_mixin.dart';
 
-/// Pure explore video screen using VideoPageView for consistent behavior
+/// Pure explore video screen using VideoFeedItem directly in PageView
 class ExploreVideoScreenPure extends ConsumerStatefulWidget {
   const ExploreVideoScreenPure({
     super.key,
@@ -15,18 +17,21 @@ class ExploreVideoScreenPure extends ConsumerStatefulWidget {
     required this.videoList,
     required this.contextTitle,
     this.startingIndex,
+    this.onLoadMore,
   });
 
   final VideoEvent startingVideo;
   final List<VideoEvent> videoList;
   final String contextTitle;
   final int? startingIndex;
+  final VoidCallback? onLoadMore;
 
   @override
   ConsumerState<ExploreVideoScreenPure> createState() => _ExploreVideoScreenPureState();
 }
 
-class _ExploreVideoScreenPureState extends ConsumerState<ExploreVideoScreenPure> {
+class _ExploreVideoScreenPureState extends ConsumerState<ExploreVideoScreenPure>
+    with PaginationMixin {
   late int _initialIndex;
 
   @override
@@ -55,19 +60,35 @@ class _ExploreVideoScreenPureState extends ConsumerState<ExploreVideoScreenPure>
 
   @override
   Widget build(BuildContext context) {
-    // ExploreVideoScreenPure is now a body widget - parent handles Scaffold
-    return VideoPageView(
-      key: Key('explore-video-${widget.startingVideo.id}'),
-      videos: widget.videoList,
-      initialIndex: _initialIndex,
-      hasBottomNavigation: false, // Explore feed mode has no bottom navigation
-      enablePrewarming: true,
-      enablePreloading: false, // Explore screen doesn't need preloading
-      enableLifecycleManagement: true, // Enable lifecycle management for autoplay
-      contextTitle: widget.contextTitle,
-      onPageChanged: (index, video) {
-        Log.debug('📄 Page changed to index $index (${video.id.substring(0, 8)}...)',
+    // Simple PageView.builder using VideoFeedItem directly
+    return PageView.builder(
+      itemCount: widget.videoList.length,
+      controller: PageController(initialPage: _initialIndex),
+      scrollDirection: Axis.vertical,
+      onPageChanged: (index) {
+        Log.debug('📄 Page changed to index $index (${widget.videoList[index].id.substring(0, 8)}...)',
             name: 'ExploreVideoScreen', category: LogCategory.video);
+
+        // Update URL to trigger reactive video playback via router
+        context.goExplore(index);
+
+        // Trigger pagination when near the end if callback provided
+        if (widget.onLoadMore != null) {
+          checkForPagination(
+            currentIndex: index,
+            totalItems: widget.videoList.length,
+            onLoadMore: widget.onLoadMore!,
+          );
+        }
+      },
+      itemBuilder: (context, index) {
+        return VideoFeedItem(
+          key: ValueKey('video-${widget.videoList[index].id}'),
+          video: widget.videoList[index],
+          index: index,
+          hasBottomNavigation: false,
+          contextTitle: widget.contextTitle,
+        );
       },
     );
   }

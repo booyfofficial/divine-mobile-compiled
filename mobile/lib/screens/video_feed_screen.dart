@@ -14,8 +14,9 @@ import 'package:openvine/providers/social_providers.dart' as social;
 import 'package:openvine/router/nav_extensions.dart';
 import 'package:openvine/theme/vine_theme.dart';
 import 'package:openvine/utils/unified_logger.dart';
-import 'package:openvine/widgets/video_page_view.dart';
+import 'package:openvine/widgets/video_feed_item.dart';
 import 'package:openvine/state/video_feed_state.dart';
+import 'package:openvine/mixins/pagination_mixin.dart';
 
 /// Feed context for filtering videos
 enum FeedContext {
@@ -89,7 +90,7 @@ class VideoFeedScreen extends ConsumerStatefulWidget {
 }
 
 class _VideoFeedScreenState extends ConsumerState<VideoFeedScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, PaginationMixin {
   late PageController _pageController;
   int _currentIndex = 0;
   bool _isRefreshing = false; // Track if feed is currently refreshing
@@ -230,8 +231,6 @@ class _VideoFeedScreenState extends ConsumerState<VideoFeedScreen>
     if (index < 0 || index >= videos.length) {
       return;
     }
-
-    // Preloading and prewarming now handled by VideoPageView
 
     // Batch fetch profiles for videos around current position
     _batchFetchProfilesAroundIndex(index, videos);
@@ -513,112 +512,34 @@ class _VideoFeedScreenState extends ConsumerState<VideoFeedScreen>
         name: 'VideoFeedScreen',
         category: LogCategory.ui);
 
-    // Temporarily simplified to match explore feed - testing if Stack wrapper blocks gestures
-    return VideoPageView(
-        videos: videos,
-        controller: _pageController,
-        initialIndex: _currentIndex,
-        hasBottomNavigation: true,
-        enablePrewarming: true,
-        enablePreloading: true,
-        enableLifecycleManagement: false,  // Match explore feed to avoid IndexedStack conflicts
-        tabIndex: 0, // Home feed is tab 0
-        onPageChanged: (index, video) {
-          setState(() => _currentIndex = index);
-          _onPageChanged(index);
-        },
-        onLoadMore: () {
-          _checkForPagination(_currentIndex, videos.length);
-        },
-        onRefresh: () async {
-          await _handleRefresh();
-        }
-      );
+    return PageView.builder(
+      itemCount: videos.length,
+      controller: _pageController,
+      scrollDirection: Axis.vertical,
+      onPageChanged: (index) {
+        setState(() => _currentIndex = index);
+        _onPageChanged(index);
 
-    /* REMOVED FOR TESTING - Stack wrapper may block gestures
-    return Semantics(
-      label: 'Video feed',
-      child: Stack(
-        children: [
-          VideoPageView(...),
-
-          // Pull-to-refresh indicator overlay
-          if (_isRefreshing && _currentIndex == 0)
-            Positioned(
-              top: 100,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Refreshing feed...',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-    */
-  }
-
-
-
-
-  DateTime? _lastPaginationCall;
-
-  /// Check if we're near the end of the video list and should load more content
-  void _checkForPagination(int currentIndex, int totalVideos) {
-    // Load more when we're 3 videos away from the end
-    const paginationThreshold = 3;
-
-    if (currentIndex >= totalVideos - paginationThreshold) {
-      // Rate limit pagination calls to prevent spam
-      final now = DateTime.now();
-      if (_lastPaginationCall != null &&
-          now.difference(_lastPaginationCall!).inSeconds < 5) {
-        Log.debug(
-          'VideoFeed: Skipping pagination - too soon since last call',
-          name: 'VideoFeedScreen',
-          category: LogCategory.video,
+        // Trigger pagination when near the end using PaginationMixin
+        checkForPagination(
+          currentIndex: index,
+          totalItems: videos.length,
+          onLoadMore: () => ref.read(homeFeedProvider.notifier).loadMore(),
         );
-        return;
-      }
 
-      _lastPaginationCall = now;
-
-      Log.info(
-        'VideoFeed: Near end of videos ($currentIndex/$totalVideos), loading more...',
-        name: 'VideoFeedScreen',
-        category: LogCategory.video,
-      );
-
-      // Call the home feed provider's loadMore method
-      ref.read(homeFeedProvider.notifier).loadMore();
-    }
+        Log.debug('📄 Page changed to index $index (${videos[index].id.substring(0, 8)}...)',
+            name: 'VideoFeedScreen', category: LogCategory.video);
+      },
+      itemBuilder: (context, index) {
+        return VideoFeedItem(
+          key: ValueKey('video-${videos[index].id}'),
+          video: videos[index],
+          index: index,
+          hasBottomNavigation: true,
+          contextTitle: '', // Home feed has no context title
+        );
+      },
+    );
   }
 
   /// Handle pull-to-refresh functionality
@@ -635,6 +556,9 @@ class _VideoFeedScreenState extends ConsumerState<VideoFeedScreen>
 
       // Refresh the home feed using Riverpod
       await ref.read(homeFeedProvider.notifier).refresh();
+
+      // Clear pagination throttle after refresh
+      resetPagination();
 
       Log.info('✅ Feed refresh completed',
           name: 'VideoFeedScreen', category: LogCategory.ui);

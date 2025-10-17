@@ -41,7 +41,7 @@ class HashtagScreenRouter extends ConsumerWidget {
         name: 'HashtagRouter', category: LogCategory.ui);
 
     // Watch the hashtag feed provider to get videos
-    final feedStateAsync = ref.watch(videosForHashtagRouteProvider);
+    final feedStateAsync = ref.watch(hashtagFeedProvider);
 
     return feedStateAsync.when(
       loading: () => const Scaffold(
@@ -67,7 +67,8 @@ class HashtagScreenRouter extends ConsumerWidget {
           videoList: videos,
           contextTitle: '#$hashtag',
           startingIndex: safeIndex,
-          // TODO: Add pagination callback when we implement loadMore for hashtags
+          // Add pagination callback
+          onLoadMore: () => ref.read(hashtagFeedProvider.notifier).loadMore(),
         );
       },
     );

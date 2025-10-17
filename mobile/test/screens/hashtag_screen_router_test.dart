@@ -63,7 +63,7 @@ void main() {
 
   testWidgets('HASHTAG: URL ↔ PageView sync', (tester) async {
     final c = ProviderContainer(overrides: [
-      videosForHashtagRouteProvider.overrideWith((ref) {
+      hashtagFeedProvider.overrideWith((ref) {
         return AsyncValue.data(VideoFeedState(
           videos: mockVideos,
           hasMoreContent: false,
@@ -88,7 +88,7 @@ void main() {
 
   testWidgets('HASHTAG: Empty state shows when no videos', (tester) async {
     final c = ProviderContainer(overrides: [
-      videosForHashtagRouteProvider.overrideWith((ref) {
+      hashtagFeedProvider.overrideWith((ref) {
         return AsyncValue.data(VideoFeedState(
           videos: const [],
           hasMoreContent: false,
@@ -113,7 +113,7 @@ void main() {
     );
 
     final c = ProviderContainer(overrides: [
-      videosForHashtagRouteProvider.overrideWith((ref) {
+      hashtagFeedProvider.overrideWith((ref) {
         return AsyncValue.data(VideoFeedState(
           videos: mockVideos,
           hasMoreContent: false,
@@ -136,7 +136,7 @@ void main() {
       (tester) async {
     final c = ProviderContainer(overrides: [
       appForegroundProvider.overrideWithValue(const AsyncValue.data(false)),
-      videosForHashtagRouteProvider.overrideWith((ref) {
+      hashtagFeedProvider.overrideWith((ref) {
         return AsyncValue.data(VideoFeedState(
           videos: mockVideos,
           hasMoreContent: false,

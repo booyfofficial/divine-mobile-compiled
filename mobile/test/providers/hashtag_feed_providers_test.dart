@@ -8,10 +8,8 @@ import 'package:openvine/models/video_event.dart';
 import 'package:openvine/providers/hashtag_feed_providers.dart';
 import 'package:openvine/providers/app_providers.dart';
 import 'package:openvine/router/page_context_provider.dart';
-import 'package:openvine/router/router_location_provider.dart';
 import 'package:openvine/router/route_utils.dart';
 import 'package:openvine/services/video_event_service.dart';
-import 'package:openvine/services/video_prewarmer.dart';
 
 /// Fake VideoEventService for testing reactive behavior
 class FakeVideoEventService extends ChangeNotifier
@@ -75,33 +73,30 @@ void main() {
       container.dispose();
     });
 
-    test('returns empty state when route type is not hashtag', () {
+    test('returns empty state when route type is not hashtag', () async {
       // Arrange: Route context is home, not hashtag
       container = ProviderContainer(
         overrides: [
           videoEventServiceProvider.overrideWithValue(fakeService),
-          videoPrewarmerProvider.overrideWithValue(NoopPrewarmer()),
           pageContextProvider.overrideWith((ref) {
             return Stream.value(const RouteContext(type: RouteType.home));
           }),
         ],
       );
 
-      // Act
-      final result = container.read(videosForHashtagRouteProvider);
+      // Wait for async build to complete
+      final state = await container.read(hashtagFeedProvider.future);
 
       // Assert
-      expect(result.hasValue, isTrue);
-      expect(result.value!.videos, isEmpty);
-      expect(result.value!.hasMoreContent, isFalse);
+      expect(state.videos, isEmpty);
+      expect(state.hasMoreContent, isFalse);
     });
 
-    test('returns empty state when hashtag is empty', () {
+    test('returns empty state when hashtag is empty', () async {
       // Arrange: Route is hashtag but tag is empty
       container = ProviderContainer(
         overrides: [
           videoEventServiceProvider.overrideWithValue(fakeService),
-          videoPrewarmerProvider.overrideWithValue(NoopPrewarmer()),
           pageContextProvider.overrideWith((ref) {
             return Stream.value(const RouteContext(
               type: RouteType.hashtag,
@@ -111,37 +106,16 @@ void main() {
         ],
       );
 
-      // Act
-      final result = container.read(videosForHashtagRouteProvider);
+      // Wait for async build to complete
+      final state = await container.read(hashtagFeedProvider.future);
 
       // Assert
-      expect(result.hasValue, isTrue);
-      expect(result.value!.videos, isEmpty);
+      expect(state.videos, isEmpty);
     });
 
     test('selects videos from pre-populated hashtag bucket', () async {
-      // Arrange: Override router location to /hashtag/bitcoin/0
-      container = ProviderContainer(
-        overrides: [
-          videoEventServiceProvider.overrideWithValue(fakeService),
-          videoPrewarmerProvider.overrideWithValue(NoopPrewarmer()),
-          routerLocationStreamProvider.overrideWithValue(
-            Stream.value('/hashtag/bitcoin/0'),
-          ),
-        ],
-      );
-
-      // Wait for stream to emit and provider to initialize
-      await pumpEventQueue();
-
-      // Establish listener to ensure provider is watching for changes
-      final subscription = container.listen(
-        videosForHashtagRouteProvider,
-        (_, __) {},
-      );
-
-      // Pre-populate the fake service AFTER container is created
-      // This triggers notifyListeners() which updates the select()
+      // Arrange: Pre-populate the fake service BEFORE container is created
+      // so the async build() method will find videos immediately
       fakeService.emitHashtagVideos('bitcoin', [
         VideoEvent(
           id: 'btc1',
@@ -153,43 +127,29 @@ void main() {
         ),
       ]);
 
-      // Wait for notification to propagate
-      await pumpEventQueue();
-
-      // Act: Read provider (selects from populated bucket)
-      final result = container.read(videosForHashtagRouteProvider);
-
-      // Cleanup
-      subscription.close();
-
-      // Assert: Should show the populated video
-      expect(result.hasValue, isTrue);
-      expect(result.value!.videos.length, equals(1));
-      expect(result.value!.videos[0].id, equals('btc1'));
-    });
-
-    test('shows videos from service hashtag bucket', () async {
-      // Arrange: Create container first
       container = ProviderContainer(
         overrides: [
           videoEventServiceProvider.overrideWithValue(fakeService),
-          videoPrewarmerProvider.overrideWithValue(NoopPrewarmer()),
-          routerLocationStreamProvider.overrideWithValue(
-            Stream.value('/hashtag/nostr/0'),
-          ),
+          pageContextProvider.overrideWith((ref) {
+            return Stream.value(const RouteContext(
+              type: RouteType.hashtag,
+              hashtag: 'bitcoin',
+              videoIndex: 0,
+            ));
+          }),
         ],
       );
 
-      // Wait for stream to emit and provider to initialize
-      await pumpEventQueue();
+      // Wait for async build to complete
+      final state = await container.read(hashtagFeedProvider.future);
 
-      // Establish listener to ensure provider is watching for changes
-      final subscription = container.listen(
-        videosForHashtagRouteProvider,
-        (_, __) {},
-      );
+      // Assert: Should show the populated video
+      expect(state.videos.length, equals(1));
+      expect(state.videos[0].id, equals('btc1'));
+    });
 
-      // Pre-populate service AFTER listener is established
+    test('shows videos from service hashtag bucket', () async {
+      // Arrange: Pre-populate service BEFORE container creation
       fakeService.emitHashtagVideos('nostr', [
         VideoEvent(
           id: 'nostr1',
@@ -209,45 +169,30 @@ void main() {
         ),
       ]);
 
-      // Wait for notification to propagate
-      await pumpEventQueue();
-
-      // Act
-      final result = container.read(videosForHashtagRouteProvider);
-
-      // Cleanup
-      subscription.close();
-
-      // Assert: Should show both videos from the bucket
-      expect(result.hasValue, isTrue);
-      expect(result.value!.videos.length, equals(2));
-      expect(result.value!.videos[0].id, equals('nostr1'));
-      expect(result.value!.videos[1].id, equals('nostr2'));
-    });
-
-    test('only shows videos for the specific hashtag', () async {
-      // Arrange: Create container first
-      // Route is /hashtag/nostr
       container = ProviderContainer(
         overrides: [
           videoEventServiceProvider.overrideWithValue(fakeService),
-          videoPrewarmerProvider.overrideWithValue(NoopPrewarmer()),
-          routerLocationStreamProvider.overrideWithValue(
-            Stream.value('/hashtag/nostr/0'),
-          ),
+          pageContextProvider.overrideWith((ref) {
+            return Stream.value(const RouteContext(
+              type: RouteType.hashtag,
+              hashtag: 'nostr',
+              videoIndex: 0,
+            ));
+          }),
         ],
       );
 
-      // Wait for stream to emit and provider to initialize
-      await pumpEventQueue();
+      // Wait for async build to complete
+      final state = await container.read(hashtagFeedProvider.future);
 
-      // Establish listener to ensure provider is watching for changes
-      final subscription = container.listen(
-        videosForHashtagRouteProvider,
-        (_, __) {},
-      );
+      // Assert: Should show both videos from the bucket
+      expect(state.videos.length, equals(2));
+      expect(state.videos[0].id, equals('nostr1'));
+      expect(state.videos[1].id, equals('nostr2'));
+    });
 
-      // Populate service with videos for multiple hashtags AFTER listener is established
+    test('only shows videos for the specific hashtag', () async {
+      // Arrange: Populate service with videos for multiple hashtags BEFORE container creation
       fakeService.emitHashtagVideos('nostr', [
         VideoEvent(
           id: 'nostr1',
@@ -270,19 +215,26 @@ void main() {
         ),
       ]);
 
-      // Wait for notification to propagate
-      await pumpEventQueue();
+      container = ProviderContainer(
+        overrides: [
+          videoEventServiceProvider.overrideWithValue(fakeService),
+          pageContextProvider.overrideWith((ref) {
+            return Stream.value(const RouteContext(
+              type: RouteType.hashtag,
+              hashtag: 'nostr',
+              videoIndex: 0,
+            ));
+          }),
+        ],
+      );
 
-      // Act
-      final result = container.read(videosForHashtagRouteProvider);
-
-      // Cleanup
-      subscription.close();
+      // Wait for async build to complete
+      final state = await container.read(hashtagFeedProvider.future);
 
       // Assert: Should only show nostr video, not bitcoin
-      expect(result.value!.videos.length, equals(1));
-      expect(result.value!.videos[0].id, equals('nostr1'));
-      expect(result.value!.videos[0].content, contains('Nostr'));
+      expect(state.videos.length, equals(1));
+      expect(state.videos[0].id, equals('nostr1'));
+      expect(state.videos[0].content, contains('Nostr'));
     });
   });
 }

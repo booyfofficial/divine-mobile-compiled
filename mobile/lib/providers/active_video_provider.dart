@@ -35,11 +35,10 @@ final activeVideoIdProvider = Provider<String?>((ref) {
       videosAsync = ref.watch(videosForProfileRouteProvider);
       break;
     case RouteType.hashtag:
-      videosAsync = ref.watch(videosForHashtagRouteProvider);
+      videosAsync = ref.watch(hashtagFeedProvider);
       break;
     case RouteType.explore:
-      // Explore route not yet implemented, use home feed as fallback
-      videosAsync = ref.watch(videosForHomeRouteProvider);
+      videosAsync = ref.watch(videosForExploreRouteProvider);
       break;
     case RouteType.notifications:
     case RouteType.camera:
@@ -55,8 +54,11 @@ final activeVideoIdProvider = Provider<String?>((ref) {
 
   if (videos.isEmpty) return null;
 
+  // Grid mode (no videoIndex) - no active video
+  if (ctx.videoIndex == null) return null;
+
   // Get video at current index
-  final idx = (ctx.videoIndex ?? 0).clamp(0, videos.length - 1);
+  final idx = ctx.videoIndex!.clamp(0, videos.length - 1);
   return videos[idx].id;
 });
 

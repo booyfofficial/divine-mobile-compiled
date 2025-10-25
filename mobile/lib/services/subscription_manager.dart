@@ -140,6 +140,8 @@ class SubscriptionManager {
           since: filter.since,
           until: filter.until,
           search: filter.search,
+          t: filter.t,
+          h: filter.h,
         );
       }
 
@@ -184,6 +186,8 @@ class SubscriptionManager {
           since: filter.since,
           until: filter.until,
           search: filter.search,
+          t: modifiedFilter?.t ?? filter.t,
+          h: modifiedFilter?.h ?? filter.h,
         );
       }
 

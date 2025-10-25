@@ -114,7 +114,8 @@ class HomeFeed extends _$HomeFeed {
     // Watch ONLY the following pubkeys, not the entire social state
     // This prevents rebuilds when social provider state changes (e.g., initialization)
     // Only rebuild when the actual following list changes
-    final followingPubkeys = ref.watch(social.socialProvider.select((state) => state.followingPubkeys));
+    final socialState = ref.watch(social.socialProvider);
+    final followingPubkeys = socialState.followingPubkeys;
 
     Log.info(
       '🏠 HomeFeed: BUILD #$buildId - User is following ${followingPubkeys.length} people',

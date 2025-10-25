@@ -44,6 +44,8 @@ void main() {
     when(mockAuthService.currentPublicKeyHex).thenReturn(validPubkey('different'));
     when(mockNostrService.subscribeToEvents(filters: anyNamed('filters')))
         .thenAnswer((_) => eventStreamController.stream);
+    when(mockNostrService.isInitialized).thenReturn(true);
+    when(mockSocialService.isFollowing(any)).thenReturn(false);
   });
 
   tearDown(() {

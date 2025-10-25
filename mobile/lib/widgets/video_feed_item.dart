@@ -391,13 +391,16 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
 
 
                         return SizedBox.expand(
-                          child: FittedBox(
-                            fit: isPortraitVideo ? BoxFit.cover : BoxFit.contain,
-                            alignment: Alignment.topCenter,
-                            child: SizedBox(
-                              width: value.size.width == 0 ? 1 : value.size.width,
-                              height: value.size.height == 0 ? 1 : value.size.height,
-                              child: VideoPlayer(controller),
+                          child: Container(
+                            color: Colors.black,
+                            child: FittedBox(
+                              fit: isPortraitVideo ? BoxFit.cover : BoxFit.contain,
+                              alignment: Alignment.topCenter,
+                              child: SizedBox(
+                                width: value.size.width == 0 ? 1 : value.size.width,
+                                height: value.size.height == 0 ? 1 : value.size.height,
+                                child: VideoPlayer(controller),
+                              ),
                             ),
                           ),
                         );

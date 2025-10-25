@@ -8,6 +8,70 @@ part of 'readiness_gate_providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+/// State notifier that tracks Nostr service initialization status
+/// Provides reactive updates when initialization state changes
+
+@ProviderFor(NostrInitialization)
+const nostrInitializationProvider = NostrInitializationProvider._();
+
+/// State notifier that tracks Nostr service initialization status
+/// Provides reactive updates when initialization state changes
+final class NostrInitializationProvider
+    extends $NotifierProvider<NostrInitialization, bool> {
+  /// State notifier that tracks Nostr service initialization status
+  /// Provides reactive updates when initialization state changes
+  const NostrInitializationProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'nostrInitializationProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$nostrInitializationHash();
+
+  @$internal
+  @override
+  NostrInitialization create() => NostrInitialization();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(bool value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<bool>(value),
+    );
+  }
+}
+
+String _$nostrInitializationHash() =>
+    r'e40e826b65db307d943b6a6e90e28685f63280d0';
+
+/// State notifier that tracks Nostr service initialization status
+/// Provides reactive updates when initialization state changes
+
+abstract class _$NostrInitialization extends $Notifier<bool> {
+  bool build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final created = build();
+    final ref = this.ref as $Ref<bool, bool>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<bool, bool>,
+              bool,
+              Object?,
+              Object?
+            >;
+    element.handleValue(ref, created);
+  }
+}
+
 /// Provider that checks if Nostr service is fully initialized and ready for subscriptions
 
 @ProviderFor(nostrReady)
@@ -24,7 +88,7 @@ final class NostrReadyProvider extends $FunctionalProvider<bool, bool, bool>
         argument: null,
         retry: null,
         name: r'nostrReadyProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -51,7 +115,7 @@ final class NostrReadyProvider extends $FunctionalProvider<bool, bool, bool>
   }
 }
 
-String _$nostrReadyHash() => r'c72999d51988ebb482534cb525e67cae832d2579';
+String _$nostrReadyHash() => r'bea339fd01394d452e936f7a419d04c118f5c1ea';
 
 /// Provider that combines all readiness gates to determine if app is ready for subscriptions
 

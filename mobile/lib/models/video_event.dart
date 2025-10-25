@@ -870,18 +870,28 @@ class VideoEvent {
 
   /// Score video URL by format preference
   /// Higher scores = better format preference
-  /// HLS is best for adaptive bitrate, then fall back to MP4
+  /// On web: MP4 is better than HLS for short videos (simpler, no manifest parsing)
+  /// On mobile: HLS is better for adaptive bitrate streaming
   static int _scoreVideoUrl(String url) {
     final urlLower = url.toLowerCase();
+    final isWeb = kIsWeb;
 
     // Reject broken vine.co URLs immediately
     if (urlLower.contains('vine.co')) return -1;
 
-    // HLS (.m3u8) is BEST - adaptive bitrate streaming
-    if (urlLower.contains('.m3u8') || urlLower.contains('hls')) return 110;
-
-    // MP4 is good fallback - universal compatibility
-    if (urlLower.contains('.mp4')) return 100;
+    // Web preference: MP4 > HLS for short videos (avoids HLS.js complexity)
+    // Mobile preference: HLS > MP4 for adaptive bitrate
+    if (isWeb) {
+      // On web, prefer direct MP4 for short videos (simpler, faster)
+      if (urlLower.contains('.mp4')) return 110;
+      // HLS works but requires HLS.js library
+      if (urlLower.contains('.m3u8') || urlLower.contains('hls')) return 100;
+    } else {
+      // On mobile, HLS is best for adaptive bitrate streaming
+      if (urlLower.contains('.m3u8') || urlLower.contains('hls')) return 110;
+      // MP4 is good fallback
+      if (urlLower.contains('.mp4')) return 100;
+    }
 
     // WebM is good for web
     if (urlLower.contains('.webm')) return 90;

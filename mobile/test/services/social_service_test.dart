@@ -23,13 +23,24 @@ void main() {
       mockAuthService = MockAuthService();
       mockSubscriptionManager = MockSubscriptionManager();
 
-      // Set up default stubs for AuthService
-      when(mockAuthService.isAuthenticated).thenReturn(true);
+      // Set up default stubs for AuthService (default to false to prevent initialization calls)
+      when(mockAuthService.isAuthenticated).thenReturn(false);
       when(mockAuthService.currentPublicKeyHex).thenReturn('test_user_pubkey');
 
       // Set up default stubs for NostrService
       when(mockNostrService.subscribeToEvents(filters: anyNamed('filters')))
           .thenAnswer((_) => Stream.fromIterable([]));
+
+      // Mock createSubscription for SocialService initialization
+      when(mockSubscriptionManager.createSubscription(
+        name: anyNamed('name'),
+        filters: anyNamed('filters'),
+        onEvent: anyNamed('onEvent'),
+        onError: anyNamed('onError'),
+        onComplete: anyNamed('onComplete'),
+        timeout: anyNamed('timeout'),
+        priority: anyNamed('priority'),
+      )).thenAnswer((_) async => 'test_subscription_id');
 
       socialService = SocialService(mockNostrService, mockAuthService,
           subscriptionManager: mockSubscriptionManager);
@@ -37,6 +48,7 @@ void main() {
 
     tearDown(() {
       socialService.dispose();
+      resetMockitoState(); // Clear any pending verification state
       reset(mockNostrService);
       reset(mockAuthService);
       reset(mockSubscriptionManager);
@@ -188,9 +200,9 @@ void main() {
         // Verify no event creation was attempted
         verifyNever(
           mockAuthService.createAndSignEvent(
-            kind: any,
-            content: any,
-            tags: any,
+            kind: anyNamed('kind'),
+            content: anyNamed('content'),
+            tags: anyNamed('tags'),
           ),
         );
 
@@ -255,16 +267,47 @@ void main() {
           ),
         );
 
+        // Mock deletion event for unlike
+        final mockDeletionEvent = Event(
+          publicKey2,
+          5,
+          [
+            ['e', mockEvent.id]
+          ],
+          'Unliked',
+        );
+        mockDeletionEvent.sign(privateKey2);
+
+        when(
+          mockAuthService.createAndSignEvent(
+            kind: 5,
+            content: 'Unliked',
+            tags: [
+              ['e', mockEvent.id]
+            ],
+          ),
+        ).thenAnswer((_) async => mockDeletionEvent);
+
+        when(mockNostrService.broadcastEvent(mockDeletionEvent)).thenAnswer(
+          (_) async => NostrBroadcastResult(
+            event: mockDeletionEvent,
+            successCount: 1,
+            totalRelays: 1,
+            results: const {'relay1': true},
+            errors: const {},
+          ),
+        );
+
         // First toggle - should like
         await socialService.toggleLike(testEventId, testAuthorPubkey);
         expect(socialService.isLiked(testEventId), true);
 
-        // Second toggle - should unlike locally (no new network call)
+        // Second toggle - should unlike (publishes deletion event)
         await socialService.toggleLike(testEventId, testAuthorPubkey);
         expect(socialService.isLiked(testEventId), false);
 
-        // Verify only one network call was made (for the like)
-        verify(mockNostrService.broadcastEvent(any)).called(1);
+        // Verify two network calls were made (like + unlike deletion)
+        verify(mockNostrService.broadcastEvent(any)).called(2);
       });
     });
 
@@ -275,7 +318,8 @@ void main() {
         // Mock subscription stream
         final controller = Stream<Event>.fromIterable([
           () {
-            const pk1 = 'key1';
+            const pk1 =
+                '1111111111111111111111111111111111111111111111111111111111111111';
             final pub1 = getPublicKey(pk1);
             final e1 = Event(
                 pub1,
@@ -288,7 +332,8 @@ void main() {
             return e1;
           }(),
           () {
-            const pk2 = 'key2';
+            const pk2 =
+                '2222222222222222222222222222222222222222222222222222222222222222';
             final pub2 = getPublicKey(pk2);
             final e2 = Event(
                 pub2,
@@ -301,7 +346,8 @@ void main() {
             return e2;
           }(),
           () {
-            const pk3 = 'key3';
+            const pk3 =
+                '3333333333333333333333333333333333333333333333333333333333333333';
             final pub3 = getPublicKey(pk3);
             final e3 = Event(
                 pub3,
@@ -643,9 +689,9 @@ void main() {
         // Verify no event creation was attempted
         verifyNever(
           mockAuthService.createAndSignEvent(
-            kind: any,
-            content: any,
-            tags: any,
+            kind: anyNamed('kind'),
+            content: anyNamed('content'),
+            tags: anyNamed('tags'),
           ),
         );
 
@@ -707,9 +753,9 @@ void main() {
         // Verify no additional event creation was attempted
         verifyNever(
           mockAuthService.createAndSignEvent(
-            kind: any,
-            content: any,
-            tags: any,
+            kind: anyNamed('kind'),
+            content: anyNamed('content'),
+            tags: anyNamed('tags'),
           ),
         );
       });
@@ -721,9 +767,9 @@ void main() {
         // Verify no event creation was attempted
         verifyNever(
           mockAuthService.createAndSignEvent(
-            kind: any,
-            content: any,
-            tags: any,
+            kind: anyNamed('kind'),
+            content: anyNamed('content'),
+            tags: anyNamed('tags'),
           ),
         );
       });

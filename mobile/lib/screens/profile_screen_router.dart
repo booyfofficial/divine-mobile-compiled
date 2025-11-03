@@ -724,7 +724,7 @@ class _ProfileScreenRouterState extends ConsumerState<ProfileScreenRouter>
                           : () => _followUser(userIdHex),
                       style: ElevatedButton.styleFrom(
                         backgroundColor:
-                            isFollowing ? Colors.grey[700] : Colors.purple,
+                            isFollowing ? Colors.grey[700] : VineTheme.vineGreen,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(

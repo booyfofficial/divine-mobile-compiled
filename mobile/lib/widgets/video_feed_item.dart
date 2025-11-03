@@ -398,7 +398,28 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
                               child: SizedBox(
                                 width: value.size.width == 0 ? 1 : value.size.width,
                                 height: value.size.height == 0 ? 1 : value.size.height,
-                                child: VideoPlayer(controller),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    VideoPlayer(controller),
+                                    // Centered play button when paused
+                                    if (!value.isPlaying)
+                                      Center(
+                                        child: Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withValues(alpha: 0.6),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.play_arrow,
+                                            size: 48,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

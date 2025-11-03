@@ -214,11 +214,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
       children: [
         // Tabs always visible
         Container(
-          color: VineTheme.vineGreen,
+          color: VineTheme.cardBackground,
           child: TabBar(
             controller: _tabController,
             indicatorColor: VineTheme.whiteText,
             indicatorWeight: 3,
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
             labelColor: VineTheme.whiteText,
             unselectedLabelColor: VineTheme.whiteText.withValues(alpha: 0.7),
             labelStyle: const TextStyle(

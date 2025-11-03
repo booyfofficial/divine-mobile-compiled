@@ -575,16 +575,19 @@ class VideoOverlayActions extends ConsumerWidget {
             ),
           ),
         ),
-        // Video title overlay at bottom left
+        // Gradient background for bottom section (metadata + action buttons)
         Positioned(
           bottom: 0,
-          left: 16,
-          right: 80, // Leave space for action buttons
+          left: 0,
+          right: 0,
           child: AnimatedOpacity(
             opacity: isActive ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.only(
+                bottom: hasBottomNavigation ? 80 : 16,
+                top: 100,
+              ),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
@@ -597,6 +600,19 @@ class VideoOverlayActions extends ConsumerWidget {
                   stops: const [0.0, 0.5, 1.0],
                 ),
               ),
+            ),
+          ),
+        ),
+        // Video title overlay at bottom left
+        Positioned(
+          bottom: hasBottomNavigation ? 80 : 16,
+          left: 16,
+          right: 80, // Leave space for action buttons
+          child: AnimatedOpacity(
+            opacity: isActive ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
               child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -675,9 +691,12 @@ class VideoOverlayActions extends ConsumerWidget {
         ),
         // Action buttons at bottom right
         Positioned(
-          bottom: 0,
+          bottom: hasBottomNavigation ? 80 : 16,
           right: 16,
-          child: IgnorePointer(
+          child: AnimatedOpacity(
+            opacity: isActive ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: IgnorePointer(
             ignoring: false, // Action buttons SHOULD receive taps
             child: Column(
               children: [
@@ -810,6 +829,7 @@ class VideoOverlayActions extends ConsumerWidget {
           _buildEditButton(context, ref, video),
               ],
             ),
+          ),
           ),
         ),
       ],

@@ -407,15 +407,15 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
                                     if (!value.isPlaying)
                                       Center(
                                         child: Container(
-                                          width: 48,
-                                          height: 48,
+                                          width: 120,
+                                          height: 120,
                                           decoration: BoxDecoration(
                                             color: Colors.black.withValues(alpha: 0.6),
                                             shape: BoxShape.circle,
                                           ),
                                           child: const Icon(
                                             Icons.play_arrow,
-                                            size: 32,
+                                            size: 84,
                                             color: Colors.white,
                                           ),
                                         ),

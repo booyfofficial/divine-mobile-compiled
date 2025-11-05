@@ -15,8 +15,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Reasons for content filtering/reporting
 enum ContentFilterReason {
   spam('Spam or unwanted content'),
-  harassment('Harassment or bullying'),
-  violence('Violence or threats'),
+  harassment('Harassment, bullying, or threats'),
+  violence('Violent or extremist content'),
   sexualContent('Sexual or adult content'),
   copyright('Copyright violation'),
   falseInformation('Misinformation'),

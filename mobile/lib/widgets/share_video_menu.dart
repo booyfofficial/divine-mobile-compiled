@@ -1292,24 +1292,33 @@ class _SendToUserDialogState extends ConsumerState<_SendToUserDialog> {
   }
 
   /// Build a user tile for contacts or search results
-  Widget _buildUserTile(ShareableUser user) => ListTile(
-        leading: UserAvatar(
-          imageUrl: user.picture,
-          name: user.displayName,
-          size: 40,
-        ),
-        title: Text(
-          user.displayName ?? 'Anonymous',
-          style: const TextStyle(color: VineTheme.whiteText),
-        ),
-        subtitle: Text(
-          user.pubkey,
-          style: const TextStyle(color: VineTheme.secondaryText),
-          overflow: TextOverflow.ellipsis,
-        ),
-        onTap: () => _sendToUser(user),
-        dense: true,
-      );
+  Widget _buildUserTile(ShareableUser user) {
+    // Get user profile to check for nip05
+    final userProfileService = ref.read(userProfileServiceProvider);
+    final profile = userProfileService.getCachedProfile(user.pubkey);
+
+    // Display nip05 if available, otherwise npub (never show raw hex)
+    final displayId = profile?.nip05 ?? hexToNpub(user.pubkey);
+
+    return ListTile(
+      leading: UserAvatar(
+        imageUrl: user.picture,
+        name: user.displayName,
+        size: 40,
+      ),
+      title: Text(
+        user.displayName ?? 'Anonymous',
+        style: const TextStyle(color: VineTheme.whiteText),
+      ),
+      subtitle: Text(
+        displayId,
+        style: const TextStyle(color: VineTheme.secondaryText),
+        overflow: TextOverflow.ellipsis,
+      ),
+      onTap: () => _sendToUser(user),
+      dense: true,
+    );
+  }
 
   Future<void> _searchUsers(String query) async {
     if (query.trim().isEmpty) {
@@ -1343,13 +1352,10 @@ class _SendToUserDialogState extends ConsumerState<_SendToUserDialog> {
       // If we have a specific pubkey to search for
       if (pubkeyToSearch != null) {
         try {
-          // Fetch profile if not cached
+          // Fetch profile if not cached - this returns a Future we should await
           if (!userProfileService.hasProfile(pubkeyToSearch)) {
-            userProfileService.fetchProfile(pubkeyToSearch);
+            await userProfileService.fetchProfile(pubkeyToSearch);
           }
-
-          // Give it a moment to fetch
-          await Future.delayed(const Duration(milliseconds: 500));
 
           final profile = userProfileService.getCachedProfile(pubkeyToSearch);
           searchResults.add(
@@ -1716,9 +1722,9 @@ class ReportContentDialogState extends ConsumerState<ReportContentDialog> {
       case ContentFilterReason.spam:
         return 'Spam or Unwanted Content';
       case ContentFilterReason.harassment:
-        return 'Harassment or Bullying';
+        return 'Harassment, Bullying, or Threats';
       case ContentFilterReason.violence:
-        return 'Violence or Threats';
+        return 'Violent or Extremist Content';
       case ContentFilterReason.sexualContent:
         return 'Sexual or Adult Content';
       case ContentFilterReason.copyright:

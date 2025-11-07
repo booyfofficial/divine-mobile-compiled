@@ -141,26 +141,35 @@ class VineRecordingNotifier extends StateNotifier<VineRecordingUIState> {
 
     // Auto-create draft immediately after recording finishes
     if (result.$1 != null) {
-      final draftStorage = await _ref.read(draftStorageServiceProvider.future);
+      try {
+        final draftStorage = await _ref.read(draftStorageServiceProvider.future);
 
-      final draft = VineDraft.create(
-        videoFile: result.$1!,
-        title: 'Do it for the Vine!',
-        description: '',
-        hashtags: ['openvine', 'vine'],
-        frameCount: _controller.segments.length,
-        selectedApproach: 'native',
-      );
+        final draft = VineDraft.create(
+          videoFile: result.$1!,
+          title: 'Do it for the Vine!',
+          description: '',
+          hashtags: ['openvine', 'vine'],
+          frameCount: _controller.segments.length,
+          selectedApproach: 'native',
+        );
 
-      await draftStorage.saveDraft(draft);
+        await draftStorage.saveDraft(draft);
+        Log.info('📹 Auto-created draft: ${draft.id}', category: LogCategory.video);
 
-      Log.info('📹 Auto-created draft: ${draft.id}', category: LogCategory.video);
-
-      return RecordingResult(
-        videoFile: result.$1,
-        draftId: draft.id,
-        proofManifest: result.$2,
-      );
+        return RecordingResult(
+          videoFile: result.$1,
+          draftId: draft.id,
+          proofManifest: result.$2,
+        );
+      } catch (e) {
+        Log.error('📹 Failed to auto-create draft: $e', category: LogCategory.video);
+        // Still return the video file so user can manually save
+        return RecordingResult(
+          videoFile: result.$1,
+          draftId: null,
+          proofManifest: result.$2,
+        );
+      }
     }
 
     return RecordingResult(

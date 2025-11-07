@@ -472,6 +472,7 @@ class VideoEventService extends ChangeNotifier {
     bool includeReposts =
         false, // Whether to include kind 6 reposts (disabled by default)
     VideoSortField? sortBy, // Server-side sorting if relay supports it
+    bool force = false, // Force refresh even if parameters match
   }) async {
     // NostrService now handles subscription deduplication automatically via filter hashing
     // We still track subscription types for our own state management
@@ -508,22 +509,31 @@ class VideoEventService extends ChangeNotifier {
     }
 
     // Avoid churn: if params match existing subscription, skip re-subscribe
-    if (_isDuplicateSubscription(
-      subscriptionType,
-      authors,
-      hashtags,
-      group,
-      limit,
-      since,
-      until,
-      includeReposts: includeReposts,
-    )) {
+    // UNLESS force=true (e.g., pull-to-refresh)
+    if (!force &&
+        _isDuplicateSubscription(
+          subscriptionType,
+          authors,
+          hashtags,
+          group,
+          limit,
+          since,
+          until,
+          includeReposts: includeReposts,
+        )) {
       Log.info(
           '🔁 Skipping re-subscribe for $subscriptionType (parameters unchanged)',
           name: 'VideoEventService',
           category: LogCategory.video);
       _isLoading = false;
       return;
+    }
+
+    if (force) {
+      Log.info(
+          '💪 Force refresh: creating new subscription for $subscriptionType even if params match',
+          name: 'VideoEventService',
+          category: LogCategory.video);
     }
 
     // Only close existing subscription for this type if replace=true and params changed
@@ -1717,12 +1727,16 @@ class VideoEventService extends ChangeNotifier {
   }
 
   /// Subscribe to videos with specific hashtags
-  Future<void> subscribeToHashtagVideos(List<String> hashtags,
-          {int limit = 100}) async =>
+  Future<void> subscribeToHashtagVideos(
+    List<String> hashtags, {
+    int limit = 100,
+    bool force = false,
+  }) async =>
       subscribeToVideoFeed(
         subscriptionType: SubscriptionType.hashtag,
         hashtags: hashtags,
         limit: limit,
+        force: force,
         // REMOVED sortBy - client-side sorting is sufficient for hashtags
         // Server-side sorting may not work reliably with hashtag filters
       );
@@ -1732,6 +1746,7 @@ class VideoEventService extends ChangeNotifier {
     List<String> followingPubkeys, {
     int limit = 100,
     VideoSortField? sortBy,
+    bool force = false,
   }) async =>
       subscribeToVideoFeed(
         subscriptionType: SubscriptionType.homeFeed,
@@ -1739,12 +1754,14 @@ class VideoEventService extends ChangeNotifier {
         limit: limit,
         includeReposts: true,
         sortBy: sortBy,
+        force: force,
       );
 
   /// Subscribe to discovery videos (all videos for exploration)
   Future<void> subscribeToDiscovery({
     int limit = 100,
     VideoSortField? sortBy,
+    bool force = false,
   }) async =>
       subscribeToVideoFeed(
         subscriptionType: SubscriptionType.discovery,
@@ -1752,6 +1769,7 @@ class VideoEventService extends ChangeNotifier {
         limit: limit,
         includeReposts: true,
         sortBy: sortBy,
+        force: force,
       );
 
   /// Subscribe to videos from a specific group (using 'h' tag)
@@ -1812,6 +1830,7 @@ class VideoEventService extends ChangeNotifier {
     return subscribeToVideoFeed(
       subscriptionType: SubscriptionType.discovery,
       includeReposts: false,
+      force: true, // Force refresh to get fresh data from relay
     );
   }
 

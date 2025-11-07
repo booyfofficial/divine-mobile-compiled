@@ -236,11 +236,28 @@ class HashtagFeed extends _$HashtagFeed {
 
   /// Refresh the hashtag feed
   Future<void> refresh() async {
+    // Get hashtag from route context
+    final ctx = ref.read(pageContextProvider).asData?.value;
+    final raw = (ctx?.hashtag ?? '').trim();
+    final tag = raw.toLowerCase();
+
     Log.info(
-      'HashtagFeed: Refreshing hashtag feed',
+      'HashtagFeed: Refreshing hashtag feed for #$tag',
       name: 'HashtagFeedProvider',
       category: LogCategory.video,
     );
+
+    if (tag.isNotEmpty) {
+      // Get video event service and force a fresh subscription
+      final videoEventService = ref.read(videoEventServiceProvider);
+
+      // Force new subscription to get fresh data from relay
+      await videoEventService.subscribeToHashtagVideos(
+        [tag],
+        limit: 100,
+        force: true, // Force refresh bypasses duplicate detection
+      );
+    }
 
     ref.invalidateSelf();
   }

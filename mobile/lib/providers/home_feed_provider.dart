@@ -409,7 +409,22 @@ class HomeFeed extends _$HomeFeed {
       category: LogCategory.video,
     );
 
-    // Invalidate self to rebuild with current following list
+    // Get video event service and force a fresh subscription
+    final videoEventService = ref.read(videoEventServiceProvider);
+    final socialData = ref.read(social.socialProvider);
+    final followingPubkeys = socialData.followingPubkeys;
+
+    if (followingPubkeys.isNotEmpty) {
+      // Force new subscription to get fresh data from relay
+      await videoEventService.subscribeToHomeFeed(
+        followingPubkeys,
+        limit: 100,
+        sortBy: VideoSortField.createdAt,
+        force: true, // Force refresh bypasses duplicate detection
+      );
+    }
+
+    // Invalidate self to rebuild with fresh data
     ref.invalidateSelf();
   }
 }

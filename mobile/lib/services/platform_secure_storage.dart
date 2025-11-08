@@ -324,10 +324,18 @@ class PlatformSecureStorage {
 
     try {
       if (_useFallbackStorage) {
-        // Use flutter_secure_storage fallback
-        final keyDataString = await _fallbackStorage.read(key: keyId);
+        // Try new storage first
+        var keyDataString = await _fallbackStorage.read(key: keyId);
+        var fromLegacy = false;
+
+        // If not found, try legacy storage
         if (keyDataString == null) {
-          Log.warning('Key not found in fallback storage',
+          keyDataString = await _legacyStorage.read(key: keyId);
+          fromLegacy = true;
+        }
+
+        if (keyDataString == null) {
+          Log.warning('Key not found in fallback or legacy storage',
               name: 'PlatformSecureStorage', category: LogCategory.system);
           return null;
         }
@@ -343,13 +351,19 @@ class PlatformSecureStorage {
 
         final privateKeyHex = keyData['privateKeyHex'];
         if (privateKeyHex == null) {
-          Log.error('Invalid key data in fallback storage',
+          Log.error('Invalid key data in storage',
               name: 'PlatformSecureStorage', category: LogCategory.system);
           return null;
         }
 
-        Log.info('Key retrieved successfully from fallback storage',
-            name: 'PlatformSecureStorage', category: LogCategory.system);
+        if (fromLegacy) {
+          Log.info('Key retrieved from LEGACY storage - will be migrated on next write',
+              name: 'PlatformSecureStorage', category: LogCategory.system);
+        } else {
+          Log.info('Key retrieved successfully from storage',
+              name: 'PlatformSecureStorage', category: LogCategory.system);
+        }
+
         return SecureKeyContainer.fromPrivateKeyHex(privateKeyHex);
       }
 
@@ -448,9 +462,15 @@ class PlatformSecureStorage {
 
     try {
       if (_useFallbackStorage) {
-        // Use flutter_secure_storage fallback
-        final value = await _fallbackStorage.read(key: keyId);
-        return value != null;
+        // Check new storage first
+        final newValue = await _fallbackStorage.read(key: keyId);
+        if (newValue != null) {
+          return true;
+        }
+
+        // Also check legacy storage (for keys that need migration)
+        final legacyValue = await _legacyStorage.read(key: keyId);
+        return legacyValue != null;
       }
 
       final result =

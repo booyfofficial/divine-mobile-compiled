@@ -372,6 +372,28 @@ class _DivineAppState extends ConsumerState<DivineApp> {
         }
       });
 
+      // Initialize mutual mute list sync in background
+      Future.microtask(() async {
+        try {
+          final keyManager = ref.read(nostrKeyManagerProvider);
+          final nostrService = ref.read(nostrServiceProvider);
+          final blocklistService = ref.read(contentBlocklistServiceProvider);
+
+          // Only sync if user is logged in
+          if (keyManager.publicKey != null) {
+            await blocklistService.syncMuteListsInBackground(
+              nostrService,
+              keyManager.publicKey!,
+            );
+            Log.info('[INIT] ✅ Mutual mute list sync started (background)',
+                name: 'Main', category: LogCategory.system);
+          }
+        } catch (e) {
+          Log.warning('[INIT] Mutual mute sync failed (non-critical): $e',
+              name: 'Main', category: LogCategory.system);
+        }
+      });
+
       Log.info('[INIT] ✅ All critical services initialized',
           name: 'Main', category: LogCategory.system);
     } catch (e, stack) {

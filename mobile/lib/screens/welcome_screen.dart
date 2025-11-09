@@ -73,7 +73,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   'Create and share short videos on the decentralized web',
                   style: TextStyle(
                     fontSize: 18,
-                    color: Colors.grey,
+                    color: Color(0xFFF5F6EA),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -101,10 +101,10 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                           ? () => _acceptTermsAndContinue(context)
                           : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: VineTheme.vineGreen,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey[800],
-                        disabledForegroundColor: Colors.grey[600],
+                        backgroundColor: Colors.white,
+                        foregroundColor: VineTheme.vineGreen,
+                        disabledBackgroundColor: Colors.white.withValues(alpha: 0.5),
+                        disabledForegroundColor: VineTheme.vineGreen.withValues(alpha: 0.5),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -115,7 +115,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
-                                color: Colors.white,
+                                color: VineTheme.vineGreen,
                                 strokeWidth: 2,
                               ),
                             )

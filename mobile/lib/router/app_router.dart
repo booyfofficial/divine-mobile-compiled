@@ -55,6 +55,9 @@ int tabIndexFromLocation(String loc) {
       return 3;
     case 'search':
       return -1; // Search has AppBar but no bottom nav
+    case 'edit-profile':
+    case 'setup-profile':
+      return -1; // Edit profile screens have no bottom nav
     default:
       return 0; // fallback to home
   }

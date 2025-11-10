@@ -119,6 +119,11 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     final route = ModalRoute.of(context);
     final showAppBar = route?.isFirst ?? true;
 
+    print('🔍 PROFILE_SETUP DEBUG: build called');
+    print('🔍 PROFILE_SETUP DEBUG: route?.isFirst = ${route?.isFirst}');
+    print('🔍 PROFILE_SETUP DEBUG: showAppBar = $showAppBar');
+    print('🔍 PROFILE_SETUP DEBUG: isNewUser = $isNewUser');
+
     return Scaffold(
         backgroundColor: Colors.black,
         appBar: showAppBar ? AppBar(

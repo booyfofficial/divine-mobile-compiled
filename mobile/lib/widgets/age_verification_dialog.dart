@@ -95,11 +95,7 @@ class AgeVerificationDialog extends StatelessWidget {
                           vertical: 12,
                         ),
                       ),
-                      child: Text(
-                        type == AgeVerificationType.adultContent
-                            ? 'Yes, I am 18+'
-                            : 'Yes, I am 16+',
-                      ),
+                      child: const Text('Yes'),
                     ),
                   ),
                 ],

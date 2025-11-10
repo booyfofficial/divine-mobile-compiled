@@ -304,12 +304,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/edit-profile',
         name: 'edit-profile',
-        builder: (_, __) => const ProfileSetupScreen(isNewUser: false),
+        builder: (context, state) {
+          print('🔍 ROUTE DEBUG: /edit-profile route builder called');
+          print('🔍 ROUTE DEBUG: state.uri = ${state.uri}');
+          print('🔍 ROUTE DEBUG: state.matchedLocation = ${state.matchedLocation}');
+          print('🔍 ROUTE DEBUG: state.fullPath = ${state.fullPath}');
+          return const ProfileSetupScreen(isNewUser: false);
+        },
       ),
       GoRoute(
         path: '/setup-profile',
         name: 'setup-profile',
-        builder: (_, __) => const ProfileSetupScreen(isNewUser: true),
+        builder: (context, state) {
+          print('🔍 ROUTE DEBUG: /setup-profile route builder called');
+          print('🔍 ROUTE DEBUG: state.uri = ${state.uri}');
+          print('🔍 ROUTE DEBUG: state.matchedLocation = ${state.matchedLocation}');
+          print('🔍 ROUTE DEBUG: state.fullPath = ${state.fullPath}');
+          return const ProfileSetupScreen(isNewUser: true);
+        },
       ),
       // Followers screen
       GoRoute(

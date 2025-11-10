@@ -1206,11 +1206,17 @@ class _ProfileScreenRouterState extends ConsumerState<ProfileScreenRouter>
   // Action methods
 
   Future<void> _setupProfile() async {
+    print('🔍 NAV DEBUG: ProfileScreenRouter._setupProfile() - about to push /setup-profile');
+    print('🔍 NAV DEBUG: Current location: ${GoRouterState.of(context).uri}');
     await context.push('/setup-profile');
+    print('🔍 NAV DEBUG: Returned from push /setup-profile');
   }
 
   Future<void> _editProfile() async {
+    print('🔍 NAV DEBUG: ProfileScreenRouter._editProfile() - about to push /edit-profile');
+    print('🔍 NAV DEBUG: Current location: ${GoRouterState.of(context).uri}');
     await context.push('/edit-profile');
+    print('🔍 NAV DEBUG: Returned from push /edit-profile');
   }
 
   Future<void> _shareProfile(String userIdHex) async {

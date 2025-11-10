@@ -97,8 +97,11 @@ class _VineDrawerState extends ConsumerState<VineDrawer> {
                       icon: Icons.person,
                       title: 'Edit Profile',
                       onTap: () {
+                        print('🔍 NAV DEBUG: VineDrawer.Edit Profile - about to push /edit-profile');
+                        print('🔍 NAV DEBUG: Current location: ${GoRouterState.of(context).uri}');
                         Navigator.pop(context); // Close drawer
                         context.push('/edit-profile');
+                        print('🔍 NAV DEBUG: Returned from push /edit-profile');
                       },
                     ),
                     const Divider(color: Colors.grey, height: 1),

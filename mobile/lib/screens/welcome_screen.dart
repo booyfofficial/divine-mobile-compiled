@@ -61,11 +61,10 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   height: MediaQuery.of(context).size.width < 600 ? 224 : 320,
                   fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 16),
-                // Wordmark logo
+                // Wordmark logo - positioned close to icon above
                 Image.asset(
                   'assets/icon/White cropped.png',
-                  width: MediaQuery.of(context).size.width < 600 ? 200 : 280,
+                  width: MediaQuery.of(context).size.width < 600 ? 130 : 182,
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 16),

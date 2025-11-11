@@ -5,9 +5,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:openvine/models/vine_draft.dart';
 import 'package:openvine/providers/app_providers.dart';
 import 'package:openvine/screens/pure/vine_preview_screen_pure.dart';
+import 'package:openvine/services/auth_service.dart';
 import 'package:openvine/theme/vine_theme.dart';
 
 class VineDraftsScreen extends ConsumerStatefulWidget {
@@ -55,18 +57,22 @@ class _VineDraftsScreenState extends ConsumerState<VineDraftsScreen> {
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: Colors.black,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          title: const Text(
-            'Drafts',
-            style: TextStyle(
-              color: VineTheme.whiteText,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          backgroundColor: VineTheme.vineGreen,
+          foregroundColor: VineTheme.whiteText,
+          title: const Text('Drafts'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: VineTheme.whiteText),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              // Navigate back to user's profile
+              final authService = ref.read(authServiceProvider);
+              final npub = authService.currentNpub;
+              if (npub != null) {
+                context.go('/profile/$npub');
+              } else {
+                // Fallback to home if no user logged in
+                context.go('/home/0');
+              }
+            },
           ),
           actions: [
             if (_drafts.isNotEmpty)

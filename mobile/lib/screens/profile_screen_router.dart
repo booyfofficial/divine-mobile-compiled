@@ -1259,12 +1259,7 @@ class _ProfileScreenRouterState extends ConsumerState<ProfileScreenRouter>
   }
 
   void _openDrafts() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const VineDraftsScreen(),
-      ),
-    );
+    context.go('/drafts');
   }
 
   Future<void> _followUser(String pubkey) async {

@@ -21,6 +21,7 @@ import 'package:openvine/screens/profile_setup_screen.dart';
 import 'package:openvine/screens/settings_screen.dart';
 import 'package:openvine/screens/video_detail_screen.dart';
 import 'package:openvine/screens/video_editor_screen.dart';
+import 'package:openvine/screens/vine_drafts_screen.dart';
 import 'package:openvine/screens/welcome_screen.dart';
 import 'package:openvine/services/video_stop_navigator_observer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,6 +59,7 @@ int tabIndexFromLocation(String loc) {
     case 'edit-profile':
     case 'setup-profile':
     case 'camera':
+    case 'drafts':
       return -1; // Non-tab routes - no bottom nav
     default:
       return 0; // fallback to home
@@ -326,6 +328,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           print('🔍 ROUTE DEBUG: state.fullPath = ${state.fullPath}');
           return const ProfileSetupScreen(isNewUser: true);
         },
+      ),
+      GoRoute(
+        path: '/drafts',
+        name: 'drafts',
+        builder: (_, __) => const VineDraftsScreen(),
       ),
       // Followers screen
       GoRoute(

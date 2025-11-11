@@ -12,6 +12,7 @@ enum RouteType {
   camera,
   settings,
   editProfile, // Profile editing screen
+  drafts, // Video drafts screen
 }
 
 /// Structured representation of a route
@@ -137,6 +138,10 @@ RouteContext parseRoute(String path) {
       // Profile editing screens - standalone routes outside ShellRoute
       return const RouteContext(type: RouteType.editProfile);
 
+    case 'drafts':
+      // Drafts screen - standalone route outside ShellRoute
+      return const RouteContext(type: RouteType.drafts);
+
     default:
       return const RouteContext(type: RouteType.home, videoIndex: 0);
   }
@@ -216,5 +221,8 @@ String buildRoute(RouteContext context) {
 
     case RouteType.editProfile:
       return '/edit-profile';
+
+    case RouteType.drafts:
+      return '/drafts';
   }
 }

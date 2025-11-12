@@ -17,7 +17,6 @@ import 'package:openvine/services/camera/native_macos_camera.dart';
 import 'package:openvine/services/camera/enhanced_mobile_camera_interface.dart';
 import 'package:openvine/services/web_camera_service_stub.dart'
     if (dart.library.html) 'web_camera_service.dart' as camera_service;
-import 'package:openvine/services/proofmode_session_service.dart';
 import 'package:openvine/services/native_proofmode_service.dart';
 import 'package:openvine/models/native_proof_data.dart';
 import 'package:openvine/utils/async_utils.dart';
@@ -906,14 +905,11 @@ class VineRecordingController {
   static const Duration minSegmentDuration = Duration(milliseconds: 33); // 1 frame at 30fps for stop-motion
 
   CameraPlatformInterface? _cameraInterface;
-  ProofModeSessionService? _proofModeSession;
-  String? _currentProofSessionId;
   VineRecordingState _state = VineRecordingState.idle;
   bool _cameraInitialized = false;
 
-  /// Constructor with optional ProofMode integration
-  VineRecordingController({ProofModeSessionService? proofModeSession})
-      : _proofModeSession = proofModeSession;
+  /// Constructor
+  VineRecordingController();
 
   // Getter for camera interface (needed for enhanced controls)
   CameraPlatformInterface? get cameraInterface => _cameraInterface;
@@ -1150,56 +1146,7 @@ class VineRecordingController {
       _setState(VineRecordingState.recording);
       _currentSegmentStartTime = DateTime.now();
 
-      // Start ProofMode session on first segment
-      Log.debug('ProofMode check: _proofModeSession=${_proofModeSession != null}, _currentProofSessionId=$_currentProofSessionId',
-          name: 'VineRecordingController', category: LogCategory.system);
-
-      if (_proofModeSession != null && _currentProofSessionId == null) {
-        Log.info('First segment - starting new ProofMode session',
-            name: 'VineRecordingController', category: LogCategory.system);
-        try {
-          // Ensure ProofMode is initialized (fast after first time)
-          Log.debug('Calling ensureInitialized()',
-              name: 'VineRecordingController', category: LogCategory.system);
-          await _proofModeSession!.ensureInitialized();
-          Log.debug('ensureInitialized() completed',
-              name: 'VineRecordingController', category: LogCategory.system);
-
-          Log.debug('Calling startSession()',
-              name: 'VineRecordingController', category: LogCategory.system);
-          _currentProofSessionId = await _proofModeSession!.startSession();
-          Log.debug('startSession() returned: $_currentProofSessionId',
-              name: 'VineRecordingController', category: LogCategory.system);
-
-          if (_currentProofSessionId != null) {
-            Log.debug('Starting recording segment',
-                name: 'VineRecordingController', category: LogCategory.system);
-            await _proofModeSession!.startRecordingSegment();
-            Log.info('Started ProofMode session: $_currentProofSessionId',
-                name: 'VineRecordingController', category: LogCategory.system);
-          } else {
-            Log.warning('startSession() returned null - ProofMode disabled for this recording',
-                name: 'VineRecordingController', category: LogCategory.system);
-          }
-        } catch (e, stackTrace) {
-          Log.error('ProofMode session start failed (continuing without ProofMode): $e\n$stackTrace',
-              name: 'VineRecordingController', category: LogCategory.system);
-          // Continue recording even if ProofMode fails
-        }
-      } else if (_proofModeSession != null && _currentProofSessionId != null) {
-        // Resume recording segment for subsequent segments
-        Log.info('Subsequent segment - resuming ProofMode session: $_currentProofSessionId',
-            name: 'VineRecordingController', category: LogCategory.system);
-        try {
-          await _proofModeSession!.startRecordingSegment();
-        } catch (e) {
-          Log.error('ProofMode segment start failed (continuing): $e',
-              name: 'VineRecordingController', category: LogCategory.system);
-        }
-      } else if (_proofModeSession == null) {
-        Log.warning('ProofMode session service not available - recording without ProofMode',
-            name: 'VineRecordingController', category: LogCategory.system);
-      }
+      // ProofMode proof will be generated after recording using Guardian Project native library
 
       // Normal segmented recording for all platforms
       final segmentPath = _generateSegmentPath();
@@ -1316,16 +1263,6 @@ class VineRecordingController {
             Log.warning('No file path returned from camera interface',
                 name: 'VineRecordingController', category: LogCategory.system);
           }
-        }
-      }
-
-      // Stop ProofMode segment if active
-      if (_proofModeSession != null && _currentProofSessionId != null) {
-        try {
-          await _proofModeSession!.stopRecordingSegment();
-        } catch (e) {
-          Log.error('ProofMode segment stop failed (continuing): $e',
-              name: 'VineRecordingController', category: LogCategory.system);
         }
       }
 
@@ -1660,43 +1597,8 @@ class VineRecordingController {
     }
   }
 
-  /// Generate complete ProofManifest by combining native proof and session data
-  Future<ProofManifest?> _generateProofManifest(File videoFile) async {
-    try {
-      // First generate native proof to get the video hash
-      final nativeProof = await _generateNativeProof(videoFile);
-      if (nativeProof == null) {
-        Log.info('🔐 No native proof generated, checking for ProofMode session',
-            name: 'VineRecordingController', category: LogCategory.system);
-      }
-
-      // If we have an active ProofMode session, finalize it
-      if (_proofModeSession != null && _currentProofSessionId != null) {
-        final videoHash = nativeProof?.videoHash ?? 'unknown';
-        Log.info('🔐 Finalizing ProofMode session with video hash: $videoHash',
-            name: 'VineRecordingController', category: LogCategory.system);
-
-        final manifest = await _proofModeSession!.finalizeSession(videoHash);
-        if (manifest != null) {
-          Log.info('🔐 ProofManifest generated successfully',
-              name: 'VineRecordingController', category: LogCategory.system);
-          _currentProofSessionId = null; // Clear session ID after finalization
-          return manifest;
-        }
-      }
-
-      Log.info('🔐 No ProofMode session available',
-          name: 'VineRecordingController', category: LogCategory.system);
-      return null;
-    } catch (e) {
-      Log.error('🔐 Failed to generate ProofManifest: $e',
-          name: 'VineRecordingController', category: LogCategory.system);
-      return null;
-    }
-  }
-
-  /// Finish recording and return the final compiled video with optional ProofManifest
-  Future<(File?, ProofManifest?)> finishRecording() async {
+  /// Finish recording and return the final compiled video with optional native ProofMode data
+  Future<(File?, NativeProofData?)> finishRecording() async {
     try {
       _setState(VineRecordingState.processing);
 
@@ -1725,10 +1627,10 @@ class VineRecordingController {
           _setState(VineRecordingState.completed);
           macOSInterface.isSingleRecordingMode = false; // Clear flag after successful completion
 
-          // Generate ProofManifest
-          final proofManifest = await _generateProofManifest(croppedFile);
+          // Generate native ProofMode proof
+          final nativeProof = await _generateNativeProof(croppedFile);
 
-          return (croppedFile, proofManifest);
+          return (croppedFile, nativeProof);
         }
       }
 
@@ -1786,10 +1688,10 @@ class VineRecordingController {
 
               _setState(VineRecordingState.completed);
 
-              // Generate ProofManifest
-              final proofManifest = await _generateProofManifest(tempFile);
+              // Generate native ProofMode proof
+              final nativeProof = await _generateNativeProof(tempFile);
 
-              return (tempFile, proofManifest);
+              return (tempFile, nativeProof);
             }
           } catch (e) {
             Log.error('Failed to convert blob to file: $e',
@@ -1809,10 +1711,10 @@ class VineRecordingController {
 
           _setState(VineRecordingState.completed);
 
-          // Generate ProofManifest
-          final proofManifest = await _generateProofManifest(croppedFile);
+          // Generate native ProofMode proof
+          final nativeProof = await _generateNativeProof(croppedFile);
 
-          return (croppedFile, proofManifest);
+          return (croppedFile, nativeProof);
         }
       }
 
@@ -1825,10 +1727,10 @@ class VineRecordingController {
         if (concatenatedFile != null) {
           _setState(VineRecordingState.completed);
 
-          // Generate ProofManifest
-          final proofManifest = await _generateProofManifest(concatenatedFile);
+          // Generate native ProofMode proof
+          final nativeProof = await _generateNativeProof(concatenatedFile);
 
-          return (concatenatedFile, proofManifest);
+          return (concatenatedFile, nativeProof);
         }
       }
 

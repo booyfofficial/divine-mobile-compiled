@@ -70,29 +70,30 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return; // Safety check: don't use ref if widget is disposed
 
-      // Check initial state and start playback if already active (unless autoplay is disabled)
-      if (!widget.disableAutoplay) {
-        final isActive = ref.read(isVideoActiveProvider(widget.video.id));
-        Log.info('🎬 VideoFeedItem.initState postFrameCallback: videoId=${widget.video.id}, isActive=$isActive',
-            name: 'VideoFeedItem', category: LogCategory.video);
-        if (isActive) {
-          _handlePlaybackChange(true);
-        }
-      } else {
+      if (widget.disableAutoplay) {
         Log.info('🎬 VideoFeedItem.initState: autoplay disabled for ${widget.video.id}',
             name: 'VideoFeedItem', category: LogCategory.video);
+        return;
       }
 
-      // Listen for future changes (unless autoplay is disabled)
-      if (!widget.disableAutoplay) {
-        ref.listenManual(
-          isVideoActiveProvider(widget.video.id),
-          (prev, next) {
-            Log.info('🔄 VideoFeedItem active state changed: videoId=${widget.video.id}, prev=$prev → next=$next',
-                name: 'VideoFeedItem', category: LogCategory.video);
-            _handlePlaybackChange(next);
-          },
-        );
+      // Set up listener FIRST to avoid missing provider updates during setup
+      ref.listenManual(
+        isVideoActiveProvider(widget.video.id),
+        (prev, next) {
+          Log.info('🔄 VideoFeedItem active state changed: videoId=${widget.video.id}, prev=$prev → next=$next',
+              name: 'VideoFeedItem', category: LogCategory.video);
+          _handlePlaybackChange(next);
+        },
+      );
+
+      // THEN check current state (providers may have become ready while listener was setting up)
+      // This two-step approach handles the race condition where providers might not be ready initially
+      // but become ready shortly after widget mounts
+      final isActive = ref.read(isVideoActiveProvider(widget.video.id));
+      Log.info('🎬 VideoFeedItem.initState postFrameCallback: videoId=${widget.video.id}, isActive=$isActive',
+          name: 'VideoFeedItem', category: LogCategory.video);
+      if (isActive) {
+        _handlePlaybackChange(true);
       }
     });
   }
@@ -393,17 +394,13 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
                           );
                         }
 
-                        // Use BoxFit.contain for square/landscape videos to avoid cropping
-                        // Use BoxFit.cover for portrait videos to fill the screen
-                        final aspectRatio = value.size.width / value.size.height;
-                        final isPortraitVideo = aspectRatio < 0.9; // Portrait if width < height (with 10% tolerance)
-
-
+                        // Always use BoxFit.contain to show the full video without cropping
+                        // This applies to all aspect ratios: portrait, landscape, and square
                         return SizedBox.expand(
                           child: Container(
                             color: Colors.black,
                             child: FittedBox(
-                              fit: isPortraitVideo ? BoxFit.cover : BoxFit.contain,
+                              fit: BoxFit.contain,
                               alignment: Alignment.topCenter,
                               child: SizedBox(
                                 width: value.size.width == 0 ? 1 : value.size.width,

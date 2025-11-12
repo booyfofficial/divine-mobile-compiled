@@ -1149,42 +1149,26 @@ class NostrService implements INostrService {
       throw StateError('Embedded relay not initialized');
     }
 
-    // Create filter for video events - using NIP-71 video kinds + reposts
+    // Create filter for video events with NIP-50 search query
     final filter = embedded.Filter(
       kinds: [34236, 34235, 22, 21, 6], // Video event kinds + repost (kind 6)
       authors: authors,
       since: since != null ? (since.millisecondsSinceEpoch ~/ 1000) : null,
       until: until != null ? (until.millisecondsSinceEpoch ~/ 1000) : null,
       limit: limit ?? 100,
+      unknownFields: {'search': query}, // NIP-50 search parameter
     );
 
-    // Use embedded relay to query cached events from external relays
+    // Query embedded relay - it will forward the NIP-50 search to external relays
     final controller = StreamController<Event>();
 
     () async {
       try {
         final embeddedEvents = await _embeddedRelay!.queryEvents([filter]);
-        final searchQuery = query.toLowerCase();
 
-        // Filter events based on search query
+        // Add all matching events from relay (relay performs NIP-50 search)
         for (final embeddedEvent in embeddedEvents) {
-          // Search in content
-          bool matches =
-              embeddedEvent.content.toLowerCase().contains(searchQuery);
-
-          // Also search in tags (title, description, etc.)
-          if (!matches) {
-            for (final tag in embeddedEvent.tags) {
-              if (tag
-                  .any((value) => value.toLowerCase().contains(searchQuery))) {
-                matches = true;
-                break;
-              }
-            }
-          }
-
-          // Add matching events to the stream
-          if (matches && !controller.isClosed) {
+          if (!controller.isClosed) {
             final event = _convertFromEmbeddedEvent(embeddedEvent);
             controller.add(event);
           }

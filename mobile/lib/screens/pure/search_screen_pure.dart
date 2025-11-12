@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openvine/models/video_event.dart';
 import 'package:openvine/providers/app_providers.dart';
-import 'package:openvine/providers/video_events_providers.dart';
 import 'package:openvine/router/nav_extensions.dart';
 import 'package:openvine/router/page_context_provider.dart';
 import 'package:openvine/router/route_utils.dart';
@@ -37,6 +36,10 @@ class _SearchScreenPureState extends ConsumerState<SearchScreenPure>
   List<String> _hashtagResults = [];
 
   bool _isSearching = false;
+  bool _isSearchingExternal = false;
+  bool _hasSearchedExternal = false;
+  int _localResultCount = 0;
+  int _externalResultCount = 0;
   String _currentQuery = '';
   Timer? _debounceTimer;
 
@@ -100,85 +103,98 @@ class _SearchScreenPureState extends ConsumerState<SearchScreenPure>
         _userResults = [];
         _hashtagResults = [];
         _isSearching = false;
+        _hasSearchedExternal = false;
+        _localResultCount = 0;
+        _externalResultCount = 0;
         _currentQuery = '';
       });
-      // Don't update URL while user is typing - only on explicit navigation
-      // (This prevents widget rebuilds that break the search flow)
       return;
     }
 
     setState(() {
       _isSearching = true;
+      _hasSearchedExternal = false;
+      _localResultCount = 0;
+      _externalResultCount = 0;
       _currentQuery = query;
     });
 
-    // Don't update URL during text input - only update URL when:
-    // 1. User navigates to a specific result (handled by tap handlers)
-    // 2. Widget initializes from URL (updateUrl=false in initState)
-    // This prevents route navigation from destroying/recreating the widget on every keystroke
-
-    Log.info('🔍 SearchScreenPure: Hybrid search for: $query', category: LogCategory.video);
+    Log.info('🔍 SearchScreenPure: Local search for: $query', category: LogCategory.video);
 
     try {
-      // PHASE 1: Search local cache immediately for instant results
-      final videoEventsAsync = ref.read(videoEventsProvider);
+      // Search local cache ONLY (embedded relay cache)
+      final videoEventService = ref.read(videoEventServiceProvider);
+      final videos = videoEventService.discoveryVideos;
 
-      await videoEventsAsync.when(
-        loading: () async {
-          Log.debug('🔍 SearchScreenPure: Waiting for video cache to load', category: LogCategory.video);
-        },
-        error: (error, stack) async {
-          Log.error('🔍 SearchScreenPure: Error loading local videos: $error', category: LogCategory.video);
-        },
-        data: (videos) async {
-          // Filter local videos based on search query
-          final filteredVideos = videos.where((video) {
-            final titleMatch = video.title?.toLowerCase().contains(query.toLowerCase()) ?? false;
-            final contentMatch = video.content.toLowerCase().contains(query.toLowerCase());
-            final hashtagMatch = video.hashtags.any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
-            return titleMatch || contentMatch || hashtagMatch;
-          }).toList();
+      Log.debug('🔍 SearchScreenPure: Filtering ${videos.length} cached videos', category: LogCategory.video);
 
-          // Extract unique hashtags and users from local results
-          final hashtags = <String>{};
-          final users = <String>{};
+      // Filter local videos based on search query
+      final filteredVideos = videos.where((video) {
+        final titleMatch = video.title?.toLowerCase().contains(query.toLowerCase()) ?? false;
+        final contentMatch = video.content.toLowerCase().contains(query.toLowerCase());
+        final hashtagMatch = video.hashtags.any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
+        return titleMatch || contentMatch || hashtagMatch;
+      }).toList();
 
-          for (final video in filteredVideos) {
-            for (final tag in video.hashtags) {
-              if (tag.toLowerCase().contains(query.toLowerCase())) {
-                hashtags.add(tag);
-              }
-            }
-            users.add(video.pubkey);
+      // Extract unique hashtags and users from local results
+      final hashtags = <String>{};
+      final users = <String>{};
+
+      for (final video in filteredVideos) {
+        for (final tag in video.hashtags) {
+          if (tag.toLowerCase().contains(query.toLowerCase())) {
+            hashtags.add(tag);
           }
+        }
+        users.add(video.pubkey);
+      }
 
-          // Sort local results before showing
-          filteredVideos.sort(VideoEvent.compareByLoopsThenTime);
+      // Sort local results before showing
+      filteredVideos.sort(VideoEvent.compareByLoopsThenTime);
 
-          // Show local results immediately
-          if (mounted) {
-            setState(() {
-              _videoResults = filteredVideos;
-              _hashtagResults = hashtags.take(20).toList();
-              _userResults = users.take(20).toList();
-              // Keep isSearching=true to show we're still searching remote
-            });
-          }
+      // Show local results
+      if (mounted) {
+        setState(() {
+          _videoResults = filteredVideos;
+          _hashtagResults = hashtags.take(20).toList();
+          _userResults = users.take(20).toList();
+          _localResultCount = filteredVideos.length;
+          _isSearching = false;
+        });
+      }
 
-          Log.info('🔍 SearchScreenPure: Local results: ${filteredVideos.length} videos', category: LogCategory.video);
-        },
-      );
+      Log.info('🔍 SearchScreenPure: Local results: ${filteredVideos.length} videos', category: LogCategory.video);
+    } catch (e) {
+      Log.error('🔍 SearchScreenPure: Local search failed: $e', category: LogCategory.video);
 
-      // PHASE 2: Search remote relay via VideoEventService (NIP-50)
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+        });
+      }
+    }
+  }
+
+  /// Search external relays for more results (user-initiated)
+  Future<void> _searchExternalRelays() async {
+    if (_currentQuery.isEmpty || _isSearchingExternal) return;
+
+    setState(() {
+      _isSearchingExternal = true;
+    });
+
+    Log.info('🔍 SearchScreenPure: Searching external relays for: $_currentQuery', category: LogCategory.video);
+
+    try {
       final videoEventService = ref.read(videoEventServiceProvider);
 
-      Log.info('🔍 SearchScreenPure: Starting remote relay search', category: LogCategory.video);
+      // Search external relays via embedded relay NIP-50
+      await videoEventService.searchVideos(_currentQuery, limit: 100);
 
-      // Start remote search and wait for completion (uses Completer internally)
-      await videoEventService.searchVideos(query, limit: 50);
+      // Get remote results
+      final remoteResults = videoEventService.searchResults;
 
       // Combine local + remote results
-      final remoteResults = videoEventService.searchResults;
       final allVideos = [..._videoResults, ...remoteResults];
 
       // Deduplicate by video ID
@@ -198,7 +214,7 @@ class _SearchScreenPureState extends ConsumerState<SearchScreenPure>
 
       for (final video in uniqueVideos) {
         for (final tag in video.hashtags) {
-          if (tag.toLowerCase().contains(query.toLowerCase())) {
+          if (tag.toLowerCase().contains(_currentQuery.toLowerCase())) {
             allHashtags.add(tag);
           }
         }
@@ -210,18 +226,20 @@ class _SearchScreenPureState extends ConsumerState<SearchScreenPure>
           _videoResults = uniqueVideos;
           _hashtagResults = allHashtags.take(20).toList();
           _userResults = allUsers.take(20).toList();
-          _isSearching = false;
+          _externalResultCount = remoteResults.length;
+          _hasSearchedExternal = true;
+          _isSearchingExternal = false;
         });
       }
 
-      Log.info('🔍 SearchScreenPure: Final results: ${uniqueVideos.length} videos (${remoteResults.length} from remote)',
+      Log.info('🔍 SearchScreenPure: External search complete: ${remoteResults.length} new results (total: ${uniqueVideos.length})',
           category: LogCategory.video);
     } catch (e) {
-      Log.error('🔍 SearchScreenPure: Search failed: $e', category: LogCategory.video);
+      Log.error('🔍 SearchScreenPure: External search failed: $e', category: LogCategory.video);
 
       if (mounted) {
         setState(() {
-          _isSearching = false;
+          _isSearchingExternal = false;
         });
       }
     }
@@ -373,28 +391,152 @@ class _SearchScreenPureState extends ConsumerState<SearchScreenPure>
       );
     }
 
-    return ComposableVideoGrid(
-      key: const Key('search-videos-grid'),
-      videos: _videoResults,
-      onVideoTap: (videos, index) {
-        Log.info('🔍 SearchScreenPure: Tapped video at index $index',
-            category: LogCategory.video);
-        // Navigate using GoRouter to enable router-driven video playback
-        context.goSearch(_currentQuery.isNotEmpty ? _currentQuery : null, index);
-      },
-      emptyBuilder: () => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.video_library, size: 64, color: VineTheme.secondaryText),
-            const SizedBox(height: 16),
-            Text(
-              'No videos found for "$_currentQuery"',
-              style: TextStyle(color: VineTheme.primaryText, fontSize: 18),
+    return Column(
+      children: [
+        // Show "Search external relays" banner when appropriate
+        if (!_hasSearchedExternal && !_isSearchingExternal && _currentQuery.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: VineTheme.cardBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: VineTheme.vineGreen.withValues(alpha: 0.3)),
             ),
-          ],
+            child: Row(
+              children: [
+                Icon(Icons.cloud_sync, color: VineTheme.vineGreen, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Found $_localResultCount local result${_localResultCount == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          color: VineTheme.whiteText,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Search servers for more videos',
+                        style: TextStyle(
+                          color: VineTheme.secondaryText,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: _searchExternalRelays,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: VineTheme.vineGreen,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  child: const Text('Search'),
+                ),
+              ],
+            ),
+          ),
+
+        // Show loading indicator when searching external relays
+        if (_isSearchingExternal)
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: VineTheme.cardBackground,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: VineTheme.vineGreen,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Searching servers...',
+                  style: TextStyle(color: VineTheme.whiteText),
+                ),
+              ],
+            ),
+          ),
+
+        // Show results summary after external search completes
+        if (_hasSearchedExternal && _externalResultCount > 0)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: VineTheme.vineGreen.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle, color: VineTheme.vineGreen, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Found $_externalResultCount more result${_externalResultCount == 1 ? '' : 's'} from servers',
+                  style: TextStyle(
+                    color: VineTheme.whiteText,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Video grid
+        Expanded(
+          child: ComposableVideoGrid(
+            key: const Key('search-videos-grid'),
+            videos: _videoResults,
+            onVideoTap: (videos, index) {
+              Log.info('🔍 SearchScreenPure: Tapped video at index $index',
+                  category: LogCategory.video);
+              // Navigate using GoRouter to enable router-driven video playback
+              context.goSearch(_currentQuery.isNotEmpty ? _currentQuery : null, index);
+            },
+            emptyBuilder: () => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.video_library, size: 64, color: VineTheme.secondaryText),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No videos found for "$_currentQuery"',
+                    style: TextStyle(color: VineTheme.primaryText, fontSize: 18),
+                  ),
+                  if (!_hasSearchedExternal) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _searchExternalRelays,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: VineTheme.vineGreen,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      icon: Icon(Icons.cloud_sync),
+                      label: const Text('Search Servers'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 

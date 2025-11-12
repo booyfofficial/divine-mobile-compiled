@@ -10,9 +10,7 @@ import 'package:riverpod/riverpod.dart' show Ref;
 import 'package:openvine/services/vine_recording_controller.dart'
     show VineRecordingController, VineRecordingState, RecordingSegment, MacOSCameraInterface, CameraPlatformInterface;
 import 'package:openvine/models/vine_draft.dart';
-import 'package:openvine/services/proofmode_session_service.dart' show ProofManifest, ProofModeSessionService;
-import 'package:openvine/services/proofmode_key_service.dart';
-import 'package:openvine/services/proofmode_attestation_service.dart';
+import 'package:openvine/models/native_proof_data.dart';
 import 'package:openvine/models/aspect_ratio.dart' as model;
 import 'package:openvine/providers/app_providers.dart';
 import 'package:openvine/utils/unified_logger.dart';
@@ -24,12 +22,12 @@ class RecordingResult {
   const RecordingResult({
     required this.videoFile,
     required this.draftId,
-    this.proofManifest,
+    this.nativeProof,
   });
 
   final File? videoFile;
   final String? draftId;
-  final ProofManifest? proofManifest;
+  final NativeProofData? nativeProof;
 }
 
 /// State class for VineRecording that captures all necessary UI state
@@ -168,14 +166,14 @@ class VineRecordingNotifier extends StateNotifier<VineRecordingUIState> {
       try {
         final draftStorage = await _ref.read(draftStorageServiceProvider.future);
 
-        // Serialize ProofManifest to JSON if available
+        // Serialize NativeProofData to JSON if available
         String? proofManifestJson;
         if (result.$2 != null) {
           try {
             proofManifestJson = jsonEncode(result.$2!.toJson());
-            Log.info('📜 ProofManifest attached to draft', category: LogCategory.video);
+            Log.info('📜 Native ProofMode data attached to draft', category: LogCategory.video);
           } catch (e) {
-            Log.error('Failed to serialize ProofManifest for draft: $e', category: LogCategory.video);
+            Log.error('Failed to serialize NativeProofData for draft: $e', category: LogCategory.video);
           }
         }
 
@@ -197,7 +195,7 @@ class VineRecordingNotifier extends StateNotifier<VineRecordingUIState> {
         return RecordingResult(
           videoFile: result.$1,
           draftId: draft.id,
-          proofManifest: result.$2,
+          nativeProof: result.$2,
         );
       } catch (e) {
         Log.error('📹 Failed to auto-create draft: $e', category: LogCategory.video);
@@ -205,7 +203,7 @@ class VineRecordingNotifier extends StateNotifier<VineRecordingUIState> {
         return RecordingResult(
           videoFile: result.$1,
           draftId: null,
-          proofManifest: result.$2,
+          nativeProof: result.$2,
         );
       }
     }
@@ -213,11 +211,11 @@ class VineRecordingNotifier extends StateNotifier<VineRecordingUIState> {
     return RecordingResult(
       videoFile: null,
       draftId: null,
-      proofManifest: result.$2,
+      nativeProof: result.$2,
     );
   }
 
-  Future<(File?, ProofManifest?)> finishRecording() async {
+  Future<(File?, NativeProofData?)> finishRecording() async {
     final result = await _controller.finishRecording();
     updateState();
     return result;
@@ -395,13 +393,8 @@ class VineRecordingNotifier extends StateNotifier<VineRecordingUIState> {
 /// Provider for VineRecordingController with reactive state management
 final vineRecordingProvider =
     StateNotifierProvider<VineRecordingNotifier, VineRecordingUIState>((ref) {
-  // Create ProofMode services for cryptographic proof generation
-  final keyService = ProofModeKeyService();
-  final attestationService = ProofModeAttestationService();
-  final proofModeSession = ProofModeSessionService(keyService, attestationService);
-
-  // Create recording controller with ProofMode integration
-  final controller = VineRecordingController(proofModeSession: proofModeSession);
+  // Create recording controller (ProofMode handled by Guardian Project native library)
+  final controller = VineRecordingController();
   final notifier = VineRecordingNotifier(controller, ref);
 
   ref.onDispose(() {

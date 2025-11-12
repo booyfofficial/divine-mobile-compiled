@@ -298,9 +298,8 @@ void main() {
       // Start with local video
       when(mockVideoEventService.discoveryVideos).thenReturn([localVideo]);
 
-      var searchResultsValue = <VideoEvent>[];
-      when(mockVideoEventService.searchResults)
-          .thenAnswer((_) => searchResultsValue);
+      // Initially no search results
+      when(mockVideoEventService.searchResults).thenReturn([]);
 
       when(mockVideoEventService.searchVideos(any,
               authors: anyNamed('authors'),
@@ -310,7 +309,8 @@ void main() {
           .thenAnswer((_) async {
         // Simulate remote results arriving
         await Future.delayed(const Duration(milliseconds: 100));
-        searchResultsValue = [remoteVideo];
+        // Update search results to include remote video
+        when(mockVideoEventService.searchResults).thenReturn([remoteVideo]);
       });
 
       // Act
@@ -339,17 +339,31 @@ void main() {
       await tester.pump();
       expect(find.text('Videos (1)'), findsOneWidget);
 
-      // Wait for remote search
-      await tester.pump(const Duration(milliseconds: 500));
+      // Should show "Search servers" button
+      expect(find.text('Search servers for more videos'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Search'), findsOneWidget);
+
+      // Tap "Search servers" button to trigger remote search
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Search'));
+      await tester.pump();
+
+      // Should show loading indicator
+      expect(find.text('Searching servers...'), findsOneWidget);
+
+      // Wait for remote search to complete
+      await tester.pump(const Duration(milliseconds: 200));
       await tester.pumpAndSettle();
 
-      // Should eventually show remote results
+      // Verify remote search was called
       verify(mockVideoEventService.searchVideos(any,
               authors: anyNamed('authors'),
               since: anyNamed('since'),
               until: anyNamed('until'),
               limit: anyNamed('limit')))
           .called(1);
+
+      // Should show results summary
+      expect(find.text('Found 1 more result from servers'), findsOneWidget);
     });
   });
 }

@@ -54,16 +54,14 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            // Disable minification/R8 to avoid duplicate class errors from java-opentimestamps fat JAR
-            // This increases APK size but is necessary until ProofMode library is fixed
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // Enable R8 minification for code shrinking and obfuscation
+            isMinifyEnabled = true
+            isShrinkResources = true
         }
     }
 
     packaging {
-        // Handle duplicate classes from java-opentimestamps fat JAR
-        // Pick first occurrence of duplicate classes during DEX merging
+        // Handle duplicate resource files from dependencies
         jniLibs.pickFirsts.add("**")
         resources.pickFirsts.add("**")
     }
@@ -85,15 +83,9 @@ dependencies {
     implementation("androidx.multidex:multidex:2.0.1")
 
     // ProofMode library for cryptographic proof generation
-    // Note: This pulls in java-opentimestamps:1.20 which is a fat JAR
-    implementation("org.witness:android-libproofmode:1.0.18")
+    // Upgraded to 1.0.25 to fix duplicate class issues with java-opentimestamps fat JAR
+    implementation("org.witness:android-libproofmode:1.0.25")
 }
 
-// Disable duplicate class check for release builds
-// This is required because java-opentimestamps (pulled in by ProofMode) is a fat JAR
-// that bundles common libraries like Guava, Protobuf, etc. instead of declaring them as dependencies
-afterEvaluate {
-    tasks.named("checkReleaseDuplicateClasses") {
-        enabled = false
-    }
-}
+// Note: android-libproofmode 1.0.25+ fixed duplicate class issues with java-opentimestamps
+// Earlier versions (≤1.0.18) bundled a fat JAR causing Guava conflicts

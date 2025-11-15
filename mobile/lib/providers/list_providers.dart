@@ -61,7 +61,7 @@ Stream<List<VideoEvent>> userListMemberVideos(
 
       // Filter videos to only those authored by list members
       final listMemberVideos = allVideos
-          .where((video) => pubkeys.contains(video.authorPubkey))
+          .where((video) => pubkeys.contains(video.pubkey))
           .toList();
 
       // Sort by creation time (newest first)

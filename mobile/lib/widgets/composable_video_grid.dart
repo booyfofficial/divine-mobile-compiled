@@ -21,6 +21,7 @@ class ComposableVideoGrid extends ConsumerWidget {
     required this.onVideoTap,
     this.crossAxisCount = 2,
     this.childAspectRatio = 0.72,
+    this.thumbnailAspectRatio = 1.0,
     this.padding,
     this.emptyBuilder,
     this.onRefresh,
@@ -30,6 +31,7 @@ class ComposableVideoGrid extends ConsumerWidget {
   final Function(List<VideoEvent> videos, int index) onVideoTap;
   final int crossAxisCount;
   final double childAspectRatio;
+  final double thumbnailAspectRatio;
   final EdgeInsets? padding;
   final Widget Function()? emptyBuilder;
   final Future<void> Function()? onRefresh;
@@ -125,9 +127,9 @@ class ComposableVideoGrid extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Video thumbnail with play overlay (square aspect ratio)
+              // Video thumbnail with play overlay
               AspectRatio(
-                aspectRatio: 1.0,
+                aspectRatio: thumbnailAspectRatio,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [

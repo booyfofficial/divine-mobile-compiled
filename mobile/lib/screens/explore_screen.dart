@@ -796,7 +796,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
         }
 
         // Videos are already sorted by PopularNowFeed provider (newest first)
-        return _buildVideoGrid(videos, 'New Videos');
+        // Use portrait aspect ratio (9:16) for New Videos to match vertical video format
+        return _buildVideoGrid(
+          videos,
+          'New Videos',
+          childAspectRatio: 0.50,  // Taller grid cells for portrait videos
+          thumbnailAspectRatio: 9 / 16,  // Portrait thumbnail (0.5625)
+        );
       },
       loading: () {
         Log.info('⏳ NewVinesTab: Showing loading indicator',
@@ -1102,9 +1108,20 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
     );
   }
 
-  Widget _buildVideoGrid(List<VideoEvent> videos, String tabName) {
+  Widget _buildVideoGrid(
+    List<VideoEvent> videos,
+    String tabName, {
+    double? childAspectRatio,
+    double? thumbnailAspectRatio,
+  }) {
+    // Default aspect ratios - square thumbnails with standard grid height
+    final gridAspectRatio = childAspectRatio ?? 0.72;
+    final thumbAspectRatio = thumbnailAspectRatio ?? 1.0;
+
     return ComposableVideoGrid(
       videos: videos,
+      childAspectRatio: gridAspectRatio,
+      thumbnailAspectRatio: thumbAspectRatio,
       onVideoTap: (videos, index) {
         Log.info('🎯 ExploreScreen: Tapped video tile at index $index',
             category: LogCategory.video);

@@ -16,7 +16,6 @@ import 'package:openvine/screens/profile_screen_router.dart';
 import 'package:openvine/screens/pure/search_screen_pure.dart';
 import 'package:openvine/screens/pure/universal_camera_screen_pure.dart';
 import 'package:openvine/screens/test_camera_screen.dart';
-import 'package:openvine/screens/vine_camera_screen.dart';
 import 'package:openvine/screens/followers_screen.dart';
 import 'package:openvine/screens/following_screen.dart';
 import 'package:openvine/screens/profile_setup_screen.dart';
@@ -304,7 +303,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/camera',
         name: 'camera',
-        builder: (_, __) => const VineCameraScreen(),
+        builder: (_, __) => const UniversalCameraScreenPure(),
       ),
       GoRoute(
         path: '/settings',

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Expiring Post Safety & Multiple Imeta Parsing (2025-11-25)
+
+#### Safety Improvements
+- **Added confirmation dialog for expiring posts** - Users must now explicitly confirm before enabling post expiration
+  - Shows warning that video will be "permanently deleted from Nostr relays"
+  - Warns "This action cannot be undone. Once expired, the video will be gone forever."
+  - Requires clicking "Yes, Make It Expire" to enable (prevents accidental expiration)
+  - Double-check safety: expiration tag only added if both toggle AND confirmation are true
+
+#### Bug Fixes (Postel's Law)
+- **Fixed video URL selection from multiple imeta tags** - Now correctly selects best working URL when events have multiple imeta tags with mixed working/broken URLs
+  - Added handling for `hls`, `dash`, `stream`, `streaming`, `fallback`, `mp4`, `video` keys in imeta
+  - Deprioritized known broken URL pattern: `cdn.divine.video/*/manifest/video.m3u8` (score: 5)
+  - Prioritized reliable sources: direct MP4 from cdn.divine.video (115), stream.divine.video HLS (105)
+  - Ensures working URLs from first imeta tag aren't overridden by broken URLs from second imeta tag
+
+#### Technical Details
+- Modified `lib/screens/pure/video_metadata_screen_pure.dart`:
+  - Added `_expirationConfirmed` flag
+  - Added `_showExpirationConfirmationDialog()` method
+  - Updated switch handler to show confirmation before enabling
+  - Updated publish logic to require both flags
+- Modified `lib/models/video_event.dart`:
+  - Extended imeta parsing to collect URLs from additional keys
+  - Updated `_scoreVideoUrl()` with new scoring tiers
+  - Added test: `test/unit/models/video_event_multiple_imeta_test.dart`
+
 ### Fixed - List Video Feed Layout (2025-11-25)
 
 #### Bug Fixes

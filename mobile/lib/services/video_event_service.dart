@@ -39,6 +39,7 @@ import 'package:openvine/utils/unified_logger.dart';
 import 'package:openvine/utils/log_batcher.dart';
 import 'package:openvine/constants/nip71_migration.dart';
 import 'package:openvine/services/event_router.dart';
+import 'package:openvine/services/age_verification_service.dart';
 
 /// Pagination state for tracking cursor position and loading status per subscription
 class PaginationState {
@@ -193,6 +194,7 @@ class VideoEventService extends ChangeNotifier {
 
   // Optional services for enhanced functionality
   ContentBlocklistService? _blocklistService;
+  AgeVerificationService? _ageVerificationService;
   final SubscriptionManager _subscriptionManager;
 
   // AUTH retry mechanism
@@ -203,6 +205,49 @@ class VideoEventService extends ChangeNotifier {
     _blocklistService = blocklistService;
     Log.debug('Blocklist service attached to VideoEventService',
         name: 'VideoEventService', category: LogCategory.video);
+  }
+
+  /// Set the age verification service for adult content filtering
+  void setAgeVerificationService(AgeVerificationService ageVerificationService) {
+    _ageVerificationService = ageVerificationService;
+    Log.debug('Age verification service attached to VideoEventService',
+        name: 'VideoEventService', category: LogCategory.video);
+  }
+
+  /// Returns true if adult content should be filtered from feeds
+  bool get shouldFilterAdultContent =>
+      _ageVerificationService?.shouldHideAdultContent ?? false;
+
+  /// Check if an event should be filtered based on adult content settings
+  /// Returns true if the event should be filtered OUT (not shown)
+  bool shouldFilterEvent(Event event) {
+    // If not hiding adult content, don't filter anything
+    if (!shouldFilterAdultContent) {
+      return false;
+    }
+
+    // Check for content-warning tag (indicates adult/sensitive content)
+    for (final tag in event.tags) {
+      if (tag.isNotEmpty && tag[0] == 'content-warning') {
+        Log.debug('Filtering event with content-warning tag',
+            name: 'VideoEventService', category: LogCategory.video);
+        return true;
+      }
+    }
+
+    // Check for NSFW or adult hashtags
+    for (final tag in event.tags) {
+      if (tag.length >= 2 && tag[0] == 't') {
+        final hashtag = tag[1].toLowerCase();
+        if (hashtag == 'nsfw' || hashtag == 'adult') {
+          Log.debug('Filtering event with NSFW/adult hashtag',
+              name: 'VideoEventService', category: LogCategory.video);
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /// Initialize pagination states for all subscription types
@@ -1356,6 +1401,15 @@ class VideoEventService extends ChangeNotifier {
         return;
       }
 
+      // Check if adult content should be filtered (user preference: never show)
+      if (shouldFilterEvent(event)) {
+        Log.verbose(
+            'Filtering adult content from event ${event.id}',
+            name: 'VideoEventService',
+            category: LogCategory.video);
+        return;
+      }
+
       // Handle different event kinds
       if (NIP71VideoKinds.isVideoKind(event.kind)) {
         // Direct video event
@@ -1649,6 +1703,15 @@ class VideoEventService extends ChangeNotifier {
       if (_blocklistService?.shouldFilterFromFeeds(event.pubkey) == true) {
         Log.verbose(
             'Filtering blocked historical content from ${event.pubkey}...',
+            name: 'VideoEventService',
+            category: LogCategory.video);
+        return;
+      }
+
+      // Check if adult content should be filtered (user preference: never show)
+      if (shouldFilterEvent(event)) {
+        Log.verbose(
+            'Filtering adult historical content from event ${event.id}',
             name: 'VideoEventService',
             category: LogCategory.video);
         return;

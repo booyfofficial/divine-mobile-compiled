@@ -2470,3 +2470,75 @@ final class BugReportServiceProvider
 }
 
 String _$bugReportServiceHash() => r'250a5fce245b0ddfe83986b90719d24bff84b58a';
+
+/// Provider for LikesRepository instance
+///
+/// Creates a LikesRepository when the user is authenticated.
+/// Returns null when user is not authenticated.
+///
+/// Uses:
+/// - NostrClient from nostrServiceProvider (for relay communication)
+/// - PersonalReactionsDao from databaseProvider (for local storage)
+
+@ProviderFor(likesRepository)
+const likesRepositoryProvider = LikesRepositoryProvider._();
+
+/// Provider for LikesRepository instance
+///
+/// Creates a LikesRepository when the user is authenticated.
+/// Returns null when user is not authenticated.
+///
+/// Uses:
+/// - NostrClient from nostrServiceProvider (for relay communication)
+/// - PersonalReactionsDao from databaseProvider (for local storage)
+
+final class LikesRepositoryProvider
+    extends
+        $FunctionalProvider<
+          LikesRepository?,
+          LikesRepository?,
+          LikesRepository?
+        >
+    with $Provider<LikesRepository?> {
+  /// Provider for LikesRepository instance
+  ///
+  /// Creates a LikesRepository when the user is authenticated.
+  /// Returns null when user is not authenticated.
+  ///
+  /// Uses:
+  /// - NostrClient from nostrServiceProvider (for relay communication)
+  /// - PersonalReactionsDao from databaseProvider (for local storage)
+  const LikesRepositoryProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'likesRepositoryProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$likesRepositoryHash();
+
+  @$internal
+  @override
+  $ProviderElement<LikesRepository?> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  LikesRepository? create(Ref ref) {
+    return likesRepository(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(LikesRepository? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<LikesRepository?>(value),
+    );
+  }
+}
+
+String _$likesRepositoryHash() => r'6e9d6c107d278aa03a19c3cef9c185a297956e36';

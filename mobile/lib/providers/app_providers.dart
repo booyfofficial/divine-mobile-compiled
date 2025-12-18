@@ -4,6 +4,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:likes_repository/likes_repository.dart';
 import 'package:nostr_client/nostr_client.dart';
 import 'package:nostr_key_manager/nostr_key_manager.dart';
 import 'package:openvine/providers/database_provider.dart';
@@ -759,4 +760,43 @@ BugReportService bugReportService(Ref ref) {
   );
 
   return BugReportService(nip17MessageService: nip17Service);
+}
+
+// =============================================================================
+// LIKES REPOSITORY
+// =============================================================================
+
+/// Provider for LikesRepository instance
+///
+/// Creates a LikesRepository when the user is authenticated.
+/// Returns null when user is not authenticated.
+///
+/// Uses:
+/// - NostrClient from nostrServiceProvider (for relay communication)
+/// - PersonalReactionsDao from databaseProvider (for local storage)
+@Riverpod(keepAlive: true)
+LikesRepository? likesRepository(Ref ref) {
+  final authService = ref.watch(authServiceProvider);
+
+  // Repository requires authentication
+  if (!authService.isAuthenticated || authService.currentPublicKeyHex == null) {
+    return null;
+  }
+
+  final nostrClient = ref.watch(nostrServiceProvider);
+  final db = ref.watch(databaseProvider);
+  final localStorage = DbLikesLocalStorage(
+    dao: db.personalReactionsDao,
+    userPubkey: authService.currentPublicKeyHex!,
+  );
+
+  final repository = LikesRepository(
+    nostrClient: nostrClient,
+    userPubkey: authService.currentPublicKeyHex!,
+    localStorage: localStorage,
+  );
+
+  ref.onDispose(repository.dispose);
+
+  return repository;
 }

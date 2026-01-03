@@ -178,6 +178,15 @@ class CuratedList {
   );
 }
 
+/// Callback type for list subscription events
+/// Called with listId and the video IDs in that list
+typedef OnListSubscribedCallback =
+    Future<void> Function(String listId, List<String> videoIds);
+
+/// Callback type for list unsubscription events
+/// Called with listId when a list is unsubscribed
+typedef OnListUnsubscribedCallback = void Function(String listId);
+
 /// Service for managing NIP-51 curated lists
 /// REFACTORED: Removed ChangeNotifier - now uses pure state management via Riverpod
 class CuratedListService extends ChangeNotifier {
@@ -185,15 +194,37 @@ class CuratedListService extends ChangeNotifier {
     required NostrClient nostrService,
     required AuthService authService,
     required SharedPreferences prefs,
+    OnListSubscribedCallback? onListSubscribed,
+    OnListUnsubscribedCallback? onListUnsubscribed,
   }) : _nostrService = nostrService,
        _authService = authService,
-       _prefs = prefs {
+       _prefs = prefs,
+       _onListSubscribed = onListSubscribed,
+       _onListUnsubscribed = onListUnsubscribed {
     _loadLists();
     _loadSubscribedListIds();
   }
   final NostrClient _nostrService;
   final AuthService _authService;
   final SharedPreferences _prefs;
+
+  /// Callback invoked when a list is subscribed (for video cache sync)
+  OnListSubscribedCallback? _onListSubscribed;
+
+  /// Callback invoked when a list is unsubscribed (for video cache cleanup)
+  OnListUnsubscribedCallback? _onListUnsubscribed;
+
+  /// Sets the callback for list subscription events
+  /// Used by the provider layer to wire up SubscribedListVideoCache
+  void setOnListSubscribed(OnListSubscribedCallback? callback) {
+    _onListSubscribed = callback;
+  }
+
+  /// Sets the callback for list unsubscription events
+  /// Used by the provider layer to wire up SubscribedListVideoCache
+  void setOnListUnsubscribed(OnListUnsubscribedCallback? callback) {
+    _onListUnsubscribed = callback;
+  }
 
   static const String listsStorageKey = 'curated_lists';
   static const String subscribedListsStorageKey = 'subscribed_list_ids';
@@ -858,10 +889,21 @@ class CuratedListService extends ChangeNotifier {
       await _saveSubscribedListIds();
 
       Log.info(
-        '✅ Subscribed to list: ${list.name} ($listId)',
+        'Subscribed to list: ${list.name} ($listId)',
         name: 'CuratedListService',
         category: LogCategory.system,
       );
+
+      // Trigger video cache sync for this list
+      if (_onListSubscribed != null && list.videoEventIds.isNotEmpty) {
+        Log.debug(
+          'Triggering video cache sync for list: ${list.name} '
+          '(${list.videoEventIds.length} videos)',
+          name: 'CuratedListService',
+          category: LogCategory.system,
+        );
+        await _onListSubscribed!(listId, list.videoEventIds);
+      }
 
       return true;
     } catch (e) {
@@ -895,10 +937,13 @@ class CuratedListService extends ChangeNotifier {
       await _saveSubscribedListIds();
 
       Log.info(
-        '➖ Unsubscribed from list: $listName ($listId)',
+        'Unsubscribed from list: $listName ($listId)',
         name: 'CuratedListService',
         category: LogCategory.system,
       );
+
+      // Remove list from video cache
+      _onListUnsubscribed?.call(listId);
 
       return true;
     } catch (e) {

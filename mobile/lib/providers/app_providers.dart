@@ -723,7 +723,37 @@ SubscribedListVideoCache? subscribedListVideoCache(Ref ref) {
     curatedListService: curatedListService,
   );
 
-  ref.onDispose(cache.dispose);
+  // Wire up the sync triggers: when lists are subscribed/unsubscribed,
+  // sync/remove videos from the cache automatically
+  curatedListService.setOnListSubscribed((listId, videoIds) async {
+    Log.debug(
+      'Syncing subscribed list videos: $listId (${videoIds.length} videos)',
+      name: 'SubscribedListVideoCache',
+      category: LogCategory.video,
+    );
+    await cache.syncList(listId, videoIds);
+  });
+
+  curatedListService.setOnListUnsubscribed((listId) {
+    Log.debug(
+      'Removing unsubscribed list from cache: $listId',
+      name: 'SubscribedListVideoCache',
+      category: LogCategory.video,
+    );
+    cache.removeList(listId);
+  });
+
+  // Sync all subscribed lists on initialization
+  Future.microtask(() async {
+    await cache.syncAllSubscribedLists();
+  });
+
+  ref.onDispose(() {
+    // Clear callbacks when cache is disposed
+    curatedListService.setOnListSubscribed(null);
+    curatedListService.setOnListUnsubscribed(null);
+    cache.dispose();
+  });
 
   return cache;
 }

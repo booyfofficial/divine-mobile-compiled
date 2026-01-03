@@ -2328,7 +2328,7 @@ final class SubscribedListVideoCacheProvider
 }
 
 String _$subscribedListVideoCacheHash() =>
-    r'c0542b9a2a75a37d1f4e0c11b7ba279799bf0b5b';
+    r'e7d9c2f15e09ab7d3848597e7d288749e3050f08';
 
 /// User list service for NIP-51 kind 30000 people lists
 

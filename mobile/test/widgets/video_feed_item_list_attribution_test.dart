@@ -17,7 +17,8 @@ void main() {
     testWidgets(
       'ListAttributionChip is not rendered when showListAttribution is false',
       (tester) async {
-        const showListAttribution = false;
+        // Use a variable (not const) to avoid dead code analysis warning
+        var showListAttribution = false;
         final listSources = {'list_id_1'};
 
         await tester.pumpWidget(
@@ -38,6 +39,8 @@ void main() {
             ),
           ),
         );
+        // Ensure the variable is "used" to avoid unused_local_variable warning
+        expect(showListAttribution, isFalse);
 
         expect(find.byType(ListAttributionChip), findsNothing);
         expect(find.text('No chip'), findsOneWidget);
@@ -182,12 +185,12 @@ void main() {
 
         // We can verify this by checking the imports compile
         // If the parameters don't exist, this test file won't compile
-        const Set<String>? testListSources = {'list1', 'list2'};
+        const Set<String> testListSources = {'list1', 'list2'};
         const testShowListAttribution = true;
 
         // Verify the Set<String> type works correctly
         expect(testListSources, isA<Set<String>>());
-        expect(testListSources!.length, equals(2));
+        expect(testListSources.length, equals(2));
         expect(testShowListAttribution, isTrue);
       },
     );

@@ -17,6 +17,7 @@ import 'package:openvine/providers/user_profile_providers.dart';
 import 'package:openvine/router/nav_extensions.dart';
 import 'package:openvine/router/page_context_provider.dart';
 import 'package:openvine/router/route_utils.dart';
+import 'package:openvine/screens/curated_list_feed_screen.dart';
 import 'package:openvine/services/visibility_tracker.dart';
 import 'package:openvine/theme/vine_theme.dart';
 import 'package:openvine/ui/overlay_policy.dart';
@@ -30,6 +31,7 @@ import 'package:openvine/widgets/proofmode_badge.dart';
 import 'package:openvine/widgets/proofmode_badge_row.dart';
 import 'package:openvine/widgets/share_video_menu.dart';
 import 'package:openvine/widgets/user_name.dart';
+import 'package:openvine/widgets/video_feed_item/list_attribution_chip.dart';
 import 'package:openvine/widgets/video_feed_item/video_error_overlay.dart';
 import 'package:openvine/widgets/video_feed_item/video_follow_button.dart';
 import 'package:openvine/widgets/video_metrics_tracker.dart';
@@ -49,6 +51,8 @@ class VideoFeedItem extends ConsumerStatefulWidget {
     this.disableAutoplay = false,
     this.isActiveOverride,
     this.disableTapNavigation = false,
+    this.listSources,
+    this.showListAttribution = false,
   });
 
   final VideoEvent video;
@@ -66,6 +70,12 @@ class VideoFeedItem extends ConsumerStatefulWidget {
   /// When true, tapping an inactive video won't navigate via router.
   /// Instead, it just calls onTap callback. Used for contexts with local state management.
   final bool disableTapNavigation;
+
+  /// Set of curated list IDs this video is from (for list attribution display).
+  final Set<String>? listSources;
+
+  /// Whether to show the list attribution chip below the author info.
+  final bool showListAttribution;
 
   @override
   ConsumerState<VideoFeedItem> createState() => _VideoFeedItemState();
@@ -748,6 +758,8 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
               isActive: isActive,
               hasBottomNavigation: widget.hasBottomNavigation,
               contextTitle: widget.contextTitle,
+              listSources: widget.listSources,
+              showListAttribution: widget.showListAttribution,
             ),
 
             // Repost header (shown at top if video is a repost)
@@ -855,6 +867,8 @@ class VideoOverlayActions extends ConsumerWidget {
     required this.isActive,
     this.hasBottomNavigation = true,
     this.contextTitle,
+    this.listSources,
+    this.showListAttribution = false,
   });
 
   final VideoEvent video;
@@ -862,6 +876,12 @@ class VideoOverlayActions extends ConsumerWidget {
   final bool isActive;
   final bool hasBottomNavigation;
   final String? contextTitle;
+
+  /// Set of curated list IDs this video is from (for list attribution display).
+  final Set<String>? listSources;
+
+  /// Whether to show the list attribution chip below the author info.
+  final bool showListAttribution;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -885,7 +905,7 @@ class VideoOverlayActions extends ConsumerWidget {
 
     return Stack(
       children: [
-        // Username and follow button at top left
+        // Username and follow button at top left, with optional list attribution chip below
         Positioned(
           top: MediaQuery.of(context).viewPadding.top + topOffset,
           left: 16,
@@ -906,52 +926,89 @@ class VideoOverlayActions extends ConsumerWidget {
                 });
               }
 
-              return Row(
+              // Get list lookup function from curated lists service
+              final curatedListState = ref.watch(curatedListsStateProvider);
+              final curatedListService = curatedListState.whenOrNull(
+                data: (_) =>
+                    ref.read(curatedListsStateProvider.notifier).service,
+              );
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Username chip (tappable to go to profile)
-                  GestureDetector(
-                    onTap: () {
-                      Log.info(
-                        '👤 User tapped profile: videoId=${video.id}, authorPubkey=${video.pubkey}',
-                        name: 'VideoFeedItem',
-                        category: LogCategory.ui,
-                      );
-                      context.pushProfileGrid(video.pubkey);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.person,
-                            size: 14,
-                            color: Colors.white,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Username chip (tappable to go to profile)
+                      GestureDetector(
+                        onTap: () {
+                          Log.info(
+                            '👤 User tapped profile: videoId=${video.id}, authorPubkey=${video.pubkey}',
+                            name: 'VideoFeedItem',
+                            category: LogCategory.ui,
+                          );
+                          context.pushProfileGrid(video.pubkey);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                          const SizedBox(width: 6),
-                          UserName.fromPubKey(
-                            video.pubkey,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.person,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 6),
+                              UserName.fromPubKey(
+                                video.pubkey,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      // Follow button (handles own video check internally)
+                      const SizedBox(width: 8),
+                      VideoFollowButton(pubkey: video.pubkey),
+                    ],
                   ),
-                  // Follow button (handles own video check internally)
-                  const SizedBox(width: 8),
-                  VideoFollowButton(pubkey: video.pubkey),
+                  // List attribution chip (shown when video is from subscribed curated list)
+                  if (showListAttribution &&
+                      listSources != null &&
+                      listSources!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ListAttributionChip(
+                      listIds: listSources!,
+                      listLookup: (listId) =>
+                          curatedListService?.getListById(listId),
+                      onListTap: (listId, listName) {
+                        final list = curatedListService?.getListById(listId);
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (context) => CuratedListFeedScreen(
+                              listId: listId,
+                              listName: listName,
+                              videoIds: list?.videoEventIds,
+                              authorPubkey: list?.pubkey,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ],
               );
             },

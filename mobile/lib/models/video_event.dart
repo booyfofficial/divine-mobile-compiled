@@ -49,10 +49,21 @@ class VideoEvent {
   });
 
   /// Create VideoEvent from Nostr event
-  factory VideoEvent.fromNostrEvent(Event event) {
-    if (!NIP71VideoKinds.isVideoKind(event.kind)) {
+  ///
+  /// [permissive] - When true, accepts all NIP-71 video kinds (21, 22, 34235, 34236, 34237)
+  /// instead of just kind 34236. Use this when parsing videos from external sources
+  /// like curated lists created by other clients.
+  factory VideoEvent.fromNostrEvent(Event event, {bool permissive = false}) {
+    final isValid = permissive
+        ? NIP71VideoKinds.isAcceptableVideoKind(event.kind)
+        : NIP71VideoKinds.isVideoKind(event.kind);
+
+    if (!isValid) {
+      final acceptedKinds = permissive
+          ? NIP71VideoKinds.getAllAcceptableVideoKinds()
+          : NIP71VideoKinds.getAllVideoKinds();
       throw ArgumentError(
-        'Event must be a NIP-71 video kind (${NIP71VideoKinds.getAllVideoKinds().join(', ')})',
+        'Event must be a NIP-71 video kind (${acceptedKinds.join(', ')})',
       );
     }
 

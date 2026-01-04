@@ -187,11 +187,10 @@ import SupportProvidersSDK
         // Initialize Support SDK
         Support.initialize(withZendesk: Zendesk.instance)
 
-        // Set anonymous identity by default
-        let identity = Identity.createAnonymous()
-        Zendesk.instance?.setIdentity(identity)
-
-        NSLog("✅ Zendesk: Initialized successfully")
+        // DON'T set anonymous identity here - let Flutter set it with user info
+        // Setting plain anonymous here conflicts with the email-based identity
+        // that Flutter sets later via setUserIdentity
+        NSLog("✅ Zendesk: Initialized (waiting for Flutter to set identity)")
         result(true)
 
       case "showNewTicket":
@@ -232,6 +231,39 @@ import SupportProvidersSDK
           NSLog("✅ Zendesk: Ticket list presented in navigation controller")
         }
 
+        result(true)
+
+      case "setUserIdentity":
+        guard let args = call.arguments as? [String: Any],
+              let name = args["name"] as? String,
+              let email = args["email"] as? String else {
+          result(FlutterError(
+            code: "INVALID_ARGUMENT",
+            message: "name and email are required",
+            details: nil
+          ))
+          return
+        }
+
+        NSLog("🎫 Zendesk: Setting user identity")
+        NSLog("🎫 Zendesk:   Name: \(name)")
+        NSLog("🎫 Zendesk:   Email: \(email)")
+
+        // Create anonymous identity with name and email identifiers
+        let identity = Identity.createAnonymous(name: name, email: email)
+        Zendesk.instance?.setIdentity(identity)
+
+        NSLog("✅ Zendesk: User identity set successfully")
+        result(true)
+
+      case "clearUserIdentity":
+        NSLog("🎫 Zendesk: Clearing user identity")
+
+        // Reset to plain anonymous identity
+        let identity = Identity.createAnonymous()
+        Zendesk.instance?.setIdentity(identity)
+
+        NSLog("✅ Zendesk: User identity cleared")
         result(true)
 
       case "createTicket":

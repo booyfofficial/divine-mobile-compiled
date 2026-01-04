@@ -1341,6 +1341,56 @@ final class AuthStateStreamProvider
 
 String _$authStateStreamHash() => r'bd5c1864e57cfd46c9676d3dc1fe3aa358c2a14b';
 
+/// Provider that sets Zendesk user identity when auth state changes
+/// Watch this provider at app startup to keep Zendesk identity in sync with auth
+
+@ProviderFor(zendeskIdentitySync)
+const zendeskIdentitySyncProvider = ZendeskIdentitySyncProvider._();
+
+/// Provider that sets Zendesk user identity when auth state changes
+/// Watch this provider at app startup to keep Zendesk identity in sync with auth
+
+final class ZendeskIdentitySyncProvider
+    extends $FunctionalProvider<void, void, void>
+    with $Provider<void> {
+  /// Provider that sets Zendesk user identity when auth state changes
+  /// Watch this provider at app startup to keep Zendesk identity in sync with auth
+  const ZendeskIdentitySyncProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'zendeskIdentitySyncProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$zendeskIdentitySyncHash();
+
+  @$internal
+  @override
+  $ProviderElement<void> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  void create(Ref ref) {
+    return zendeskIdentitySync(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(void value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<void>(value),
+    );
+  }
+}
+
+String _$zendeskIdentitySyncHash() =>
+    r'2acf6b0f6b58b4d4db47811891fb3397ad867ccf';
+
 /// User data cleanup service for handling identity changes
 /// Prevents data leakage between different Nostr accounts
 

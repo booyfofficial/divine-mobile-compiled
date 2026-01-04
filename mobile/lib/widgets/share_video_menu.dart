@@ -1915,67 +1915,64 @@ class ReportContentDialogState extends ConsumerState<ReportContentDialog> {
     ),
     content: SizedBox(
       width: double.maxFinite,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Why are you reporting this content?',
-            style: TextStyle(color: VineTheme.whiteText),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Divine will act on content reports within 24 hours by removing the content and ejecting the user who provided the offending content.',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            constraints: const BoxConstraints(maxHeight: 400),
-            child: SingleChildScrollView(
-              child: RadioGroup<ContentFilterReason>(
-                groupValue: _selectedReason,
-                onChanged: (value) => setState(() => _selectedReason = value),
-                child: Column(
-                  children: ContentFilterReason.values
-                      .map(
-                        (reason) => RadioListTile<ContentFilterReason>(
-                          title: Text(
-                            _getReasonDisplayName(reason),
-                            style: const TextStyle(color: VineTheme.whiteText),
-                          ),
-                          value: reason,
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _detailsController,
-            enableInteractiveSelection: true,
-            style: const TextStyle(color: VineTheme.whiteText),
-            decoration: const InputDecoration(
-              labelText: 'Additional details (optional)',
-              labelStyle: TextStyle(color: VineTheme.secondaryText),
-            ),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 8),
-          CheckboxListTile(
-            title: const Text(
-              'Block this user',
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Why are you reporting this content?',
               style: TextStyle(color: VineTheme.whiteText),
             ),
-            value: _blockUser,
-            onChanged: (value) => setState(() => _blockUser = value ?? false),
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
-        ],
+            const SizedBox(height: 8),
+            const Text(
+              'Divine will act on content reports within 24 hours by removing the content and ejecting the user who provided the offending content.',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: 16),
+            RadioGroup<ContentFilterReason>(
+              groupValue: _selectedReason,
+              onChanged: (value) => setState(() => _selectedReason = value),
+              child: Column(
+                children: ContentFilterReason.values
+                    .map(
+                      (reason) => RadioListTile<ContentFilterReason>(
+                        title: Text(
+                          _getReasonDisplayName(reason),
+                          style: const TextStyle(color: VineTheme.whiteText),
+                        ),
+                        value: reason,
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _detailsController,
+              enableInteractiveSelection: true,
+              style: const TextStyle(color: VineTheme.whiteText),
+              decoration: const InputDecoration(
+                labelText: 'Additional details (optional)',
+                labelStyle: TextStyle(color: VineTheme.secondaryText),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              title: const Text(
+                'Block this user',
+                style: TextStyle(color: VineTheme.whiteText),
+              ),
+              value: _blockUser,
+              onChanged: (value) => setState(() => _blockUser = value ?? false),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+          ],
+        ),
       ),
     ),
     actions: [

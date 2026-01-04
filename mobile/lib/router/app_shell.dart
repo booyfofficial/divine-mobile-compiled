@@ -250,6 +250,9 @@ class AppShell extends ConsumerWidget {
     // Initialize relay statistics bridge to record connection events
     ref.watch(relayStatisticsBridgeProvider);
 
+    // Initialize Zendesk identity sync to keep user identity in sync with auth
+    ref.watch(zendeskIdentitySyncProvider);
+
     // Watch page context to determine if back button should show and if on search route
     final pageCtxAsync = ref.watch(pageContextProvider);
     final isSearchRoute = pageCtxAsync.maybeWhen(

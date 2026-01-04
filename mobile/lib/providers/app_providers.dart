@@ -48,6 +48,8 @@ import 'package:openvine/services/notification_service_enhanced.dart';
 import 'package:openvine/services/personal_event_cache_service.dart';
 import 'package:openvine/services/profile_cache_service.dart';
 import 'package:openvine/services/relay_capability_service.dart';
+import 'package:openvine/services/zendesk_support_service.dart';
+import 'package:openvine/utils/nostr_key_utils.dart';
 import 'package:openvine/services/relay_statistics_service.dart';
 import 'package:openvine/services/seen_videos_service.dart';
 import 'package:openvine/services/social_service.dart';
@@ -358,6 +360,69 @@ Stream<AuthState> authStateStream(Ref ref) async* {
 
   // Then emit all future changes
   yield* authService.authStateStream;
+}
+
+/// Provider that sets Zendesk user identity when auth state changes
+/// Watch this provider at app startup to keep Zendesk identity in sync with auth
+@Riverpod(keepAlive: true)
+void zendeskIdentitySync(Ref ref) {
+  final authService = ref.watch(authServiceProvider);
+  final userProfileService = ref.watch(userProfileServiceProvider);
+
+  // Set initial identity if already authenticated
+  if (authService.isAuthenticated && authService.currentPublicKeyHex != null) {
+    _setZendeskIdentity(authService.currentPublicKeyHex!, userProfileService);
+  }
+
+  // Listen to auth state changes
+  final subscription = authService.authStateStream.listen((authState) async {
+    if (authState == AuthState.authenticated) {
+      final pubkeyHex = authService.currentPublicKeyHex;
+      if (pubkeyHex != null) {
+        await _setZendeskIdentity(pubkeyHex, userProfileService);
+      }
+    } else if (authState == AuthState.unauthenticated) {
+      await ZendeskSupportService.clearUserIdentity();
+      Log.info(
+        'Zendesk identity cleared on logout',
+        name: 'ZendeskIdentitySync',
+        category: LogCategory.system,
+      );
+    }
+  });
+
+  ref.onDispose(() {
+    subscription.cancel();
+  });
+}
+
+/// Helper to set Zendesk identity from pubkey
+Future<void> _setZendeskIdentity(
+  String pubkeyHex,
+  UserProfileService userProfileService,
+) async {
+  try {
+    final npub = NostrKeyUtils.encodePubKey(pubkeyHex);
+    final profile = userProfileService.getCachedProfile(pubkeyHex);
+
+    await ZendeskSupportService.setUserIdentity(
+      displayName: profile?.bestDisplayName,
+      nip05: profile?.nip05,
+      npub: npub,
+    );
+
+    Log.info(
+      'Zendesk identity set for user: ${profile?.bestDisplayName ?? npub}',
+      name: 'ZendeskIdentitySync',
+      category: LogCategory.system,
+    );
+  } catch (e) {
+    Log.warning(
+      'Failed to set Zendesk identity: $e',
+      name: 'ZendeskIdentitySync',
+      category: LogCategory.system,
+    );
+  }
 }
 
 /// User data cleanup service for handling identity changes

@@ -15,6 +15,7 @@ import 'package:openvine/widgets/bug_report_dialog.dart';
 import 'package:openvine/widgets/delete_account_dialog.dart';
 import 'package:openvine/services/zendesk_support_service.dart';
 import 'package:openvine/services/draft_storage_service.dart';
+import 'package:openvine/utils/nostr_key_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -632,13 +633,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   /// Show fallback support options when Zendesk is not available
-  void _showSupportFallback(
+  Future<void> _showSupportFallback(
     BuildContext context,
     WidgetRef ref,
     dynamic authService, // Type inferred from authServiceProvider
-  ) {
+  ) async {
     final bugReportService = ref.read(bugReportServiceProvider);
     final userPubkey = authService.currentPublicKeyHex;
+
+    // Set Zendesk user identity if we have a pubkey
+    if (userPubkey != null) {
+      try {
+        // Get user's npub
+        final npub = NostrKeyUtils.encodePubKey(userPubkey);
+
+        // Try to get user profile for display name and NIP-05
+        final userProfileService = ref.read(userProfileServiceProvider);
+        final profile = userProfileService.getCachedProfile(userPubkey);
+
+        await ZendeskSupportService.setUserIdentity(
+          displayName: profile?.bestDisplayName,
+          nip05: profile?.nip05,
+          npub: npub,
+        );
+      } catch (e) {
+        Log.warning(
+          'Failed to set Zendesk identity: $e',
+          category: LogCategory.system,
+        );
+      }
+    }
+
+    if (!context.mounted) return;
 
     showDialog(
       context: context,

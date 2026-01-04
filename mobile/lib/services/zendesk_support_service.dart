@@ -18,6 +18,11 @@ class ZendeskSupportService {
   /// Check if Zendesk is available (credentials configured and initialized)
   static bool get isAvailable => _initialized;
 
+  /// Current user identity info (for REST API fallback)
+  static String? _userName;
+  static String? _userEmail;
+  static String? _userNpub;
+
   /// Initialize Zendesk SDK
   ///
   /// Call once at app startup. Returns true if initialization successful.
@@ -74,6 +79,113 @@ class ZendeskSupportService {
       _initialized = false;
       return false;
     }
+  }
+
+  /// Set user identity for Zendesk tickets
+  ///
+  /// Call this after user login to associate tickets with the user.
+  /// For Nostr users, we use:
+  /// - name: Display name or NIP-05 identifier
+  /// - email: NIP-05 identifier (if available) or npub-based email
+  /// - npub: User's npub for reference in ticket body
+  ///
+  /// Returns true if identity was set successfully.
+  static Future<bool> setUserIdentity({
+    String? displayName,
+    String? nip05,
+    required String npub,
+  }) async {
+    // Store for REST API fallback
+    _userNpub = npub;
+
+    // Determine display name: prefer displayName, fall back to NIP-05, then npub
+    final effectiveName = displayName?.isNotEmpty == true
+        ? displayName!
+        : nip05?.isNotEmpty == true
+        ? nip05!
+        : _formatNpubForDisplay(npub);
+
+    // Determine email: use NIP-05 if it looks like an email, otherwise create synthetic email
+    // NIP-05 format is user@domain which works as email identifier
+    // CRITICAL: Never truncate Nostr IDs - use full npub for traceability
+    final effectiveEmail = nip05?.isNotEmpty == true && nip05!.contains('@')
+        ? nip05
+        : '$npub@divine.video';
+
+    _userName = effectiveName;
+    _userEmail = effectiveEmail;
+
+    Log.info(
+      'Setting Zendesk user identity: $effectiveName ($effectiveEmail)',
+      category: LogCategory.system,
+    );
+
+    // If native SDK is initialized, set identity there too
+    if (_initialized) {
+      try {
+        final result = await _channel.invokeMethod('setUserIdentity', {
+          'name': effectiveName,
+          'email': effectiveEmail,
+        });
+
+        if (result == true) {
+          Log.info(
+            '✅ Zendesk user identity set successfully',
+            category: LogCategory.system,
+          );
+          return true;
+        } else {
+          Log.warning(
+            'Failed to set Zendesk user identity via native SDK',
+            category: LogCategory.system,
+          );
+          // Still return true since REST API will use stored values
+          return true;
+        }
+      } on PlatformException catch (e) {
+        Log.warning(
+          'Platform error setting Zendesk identity: ${e.code} - ${e.message}',
+          category: LogCategory.system,
+        );
+        // Still return true since REST API will use stored values
+        return true;
+      } catch (e) {
+        Log.warning(
+          'Error setting Zendesk identity: $e',
+          category: LogCategory.system,
+        );
+        // Still return true since REST API will use stored values
+        return true;
+      }
+    }
+
+    // Native SDK not initialized, but REST API will use stored values
+    return true;
+  }
+
+  /// Clear user identity (call on logout)
+  static Future<void> clearUserIdentity() async {
+    _userName = null;
+    _userEmail = null;
+    _userNpub = null;
+
+    if (_initialized) {
+      try {
+        await _channel.invokeMethod('clearUserIdentity');
+        Log.info('Zendesk user identity cleared', category: LogCategory.system);
+      } catch (e) {
+        Log.warning(
+          'Error clearing Zendesk identity: $e',
+          category: LogCategory.system,
+        );
+      }
+    }
+  }
+
+  /// Format npub for display
+  /// CRITICAL: Never truncate Nostr IDs - full npub needed for user identification
+  static String _formatNpubForDisplay(String npub) {
+    return npub;
   }
 
   /// Show native Zendesk ticket creation screen
@@ -374,8 +486,10 @@ class ZendeskSupportService {
       buffer.writeln('');
       buffer.writeln('**Current Screen:** $currentScreen');
     }
-    if (userPubkey != null) {
-      buffer.writeln('**User Pubkey:** $userPubkey');
+    // Include user pubkey - use passed value or stored npub
+    final effectivePubkey = userPubkey ?? _userNpub;
+    if (effectivePubkey != null) {
+      buffer.writeln('**User Pubkey:** $effectivePubkey');
     }
     if (errorCounts != null && errorCounts.isNotEmpty) {
       buffer.writeln('');
@@ -397,6 +511,8 @@ class ZendeskSupportService {
     return createTicketViaApi(
       subject: 'Bug Report: $reportId',
       description: buffer.toString(),
+      requesterName: _userName,
+      requesterEmail: _userEmail,
       tags: ['bug_report', 'divine_app', appVersion],
     );
   }

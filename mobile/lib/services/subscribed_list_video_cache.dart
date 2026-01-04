@@ -120,16 +120,48 @@ class SubscribedListVideoCache extends ChangeNotifier {
   /// Syncs all subscribed lists from CuratedListService
   Future<void> syncAllSubscribedLists() async {
     final subscribedLists = _curatedListService.subscribedLists;
+    final subscribedIds = _curatedListService.subscribedListIds;
 
     Log.info(
-      'Syncing ${subscribedLists.length} subscribed lists in parallel',
+      '🔄 syncAllSubscribedLists called - '
+      '${subscribedLists.length} lists from service, '
+      '${subscribedIds.length} subscribed IDs',
       name: 'SubscribedListVideoCache',
       category: LogCategory.video,
     );
 
+    // Log each list for debugging
+    for (final list in subscribedLists) {
+      final shortId = list.id.length > 8 ? '${list.id.substring(0, 8)}...' : list.id;
+      Log.debug(
+        '  📋 List "${list.name}" ($shortId): '
+        '${list.videoEventIds.length} video IDs',
+        name: 'SubscribedListVideoCache',
+        category: LogCategory.video,
+      );
+    }
+
+    if (subscribedLists.isEmpty && subscribedIds.isNotEmpty) {
+      final sampleIds = subscribedIds.take(3).map((id) =>
+        id.length > 8 ? id.substring(0, 8) : id
+      ).join(", ");
+      Log.warning(
+        '⚠️ Have ${subscribedIds.length} subscribed IDs but 0 lists loaded! '
+        'IDs: $sampleIds...',
+        name: 'SubscribedListVideoCache',
+        category: LogCategory.video,
+      );
+    }
+
     // Sync all lists in parallel for faster loading
     await Future.wait(
       subscribedLists.map((list) => syncList(list.id, list.videoEventIds)),
+    );
+
+    Log.info(
+      '✅ syncAllSubscribedLists complete - cache now has ${_cachedVideos.length} videos',
+      name: 'SubscribedListVideoCache',
+      category: LogCategory.video,
     );
   }
 

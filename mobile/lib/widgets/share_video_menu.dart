@@ -25,6 +25,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:openvine/widgets/user_avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:openvine/constants/nip71_migration.dart';
+import 'package:openvine/router/nav_extensions.dart';
 
 // TODO(any): Move this to a reusable widget
 Widget get _buildLoadingIndicator => Padding(
@@ -3236,72 +3237,79 @@ class _PublicListsSectionState extends ConsumerState<_PublicListsSection> {
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: VineTheme.cardBackground,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isSubscribed
-                    ? VineTheme.vineGreen.withValues(alpha: 0.5)
-                    : Colors.grey.shade800,
+          child: GestureDetector(
+            onTap: () => _navigateToList(list),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: VineTheme.cardBackground,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSubscribed
+                      ? VineTheme.vineGreen.withValues(alpha: 0.5)
+                      : Colors.grey.shade800,
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.video_library, color: VineTheme.vineGreen, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        list.name,
-                        style: const TextStyle(
-                          color: VineTheme.whiteText,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        '${list.videoEventIds.length} videos',
-                        style: TextStyle(
-                          color: VineTheme.secondaryText,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.video_library,
+                    color: VineTheme.vineGreen,
+                    size: 20,
                   ),
-                ),
-                TextButton(
-                  onPressed: () => _toggleSubscription(list),
-                  style: TextButton.styleFrom(
-                    backgroundColor: isSubscribed
-                        ? VineTheme.cardBackground
-                        : VineTheme.vineGreen,
-                    foregroundColor: isSubscribed
-                        ? VineTheme.vineGreen
-                        : VineTheme.backgroundColor,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    minimumSize: Size.zero,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      side: isSubscribed
-                          ? BorderSide(color: VineTheme.vineGreen)
-                          : BorderSide.none,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          list.name,
+                          style: const TextStyle(
+                            color: VineTheme.whiteText,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${list.videoEventIds.length} videos',
+                          style: TextStyle(
+                            color: VineTheme.secondaryText,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Text(
-                    isSubscribed ? 'Subscribed' : 'Subscribe',
-                    style: const TextStyle(fontSize: 12),
+                  TextButton(
+                    onPressed: () => _toggleSubscription(list),
+                    style: TextButton.styleFrom(
+                      backgroundColor: isSubscribed
+                          ? VineTheme.cardBackground
+                          : VineTheme.vineGreen,
+                      foregroundColor: isSubscribed
+                          ? VineTheme.vineGreen
+                          : VineTheme.backgroundColor,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      minimumSize: Size.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                        side: isSubscribed
+                            ? BorderSide(color: VineTheme.vineGreen)
+                            : BorderSide.none,
+                      ),
+                    ),
+                    child: Text(
+                      isSubscribed ? 'Subscribed' : 'Subscribe',
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -3351,5 +3359,24 @@ class _PublicListsSectionState extends ConsumerState<_PublicListsSection> {
         );
       }
     }
+  }
+
+  void _navigateToList(CuratedList list) {
+    // Close the share menu bottom sheet first
+    Navigator.of(context).pop();
+
+    // Navigate to the curated list feed screen
+    context.pushCuratedList(
+      listId: list.id,
+      listName: list.name,
+      videoIds: list.videoEventIds,
+      authorPubkey: list.pubkey,
+    );
+
+    Log.info(
+      'Navigating to list: ${list.name}',
+      name: 'PublicListsSection',
+      category: LogCategory.ui,
+    );
   }
 }

@@ -645,11 +645,27 @@ class VideoEvent {
     return !isRepost;
   }
 
-  /// Check if we should show the Original Content badge
-  /// Show for original content that is NOT a vintage recovered vine
+  /// Check if video is hosted on Divine servers
+  bool get isFromDivineServer {
+    final url = videoUrl?.toLowerCase() ?? '';
+    return url.contains('divine.video') ||
+        url.contains('cdn.divine.video') ||
+        url.contains('stream.divine.video') ||
+        url.contains('media.divine.video');
+  }
+
+  /// Check if we should show the "Not Divine" badge
+  /// Show for content that is NOT from Divine servers
   /// AND does NOT have ProofMode verification (those show ProofMode badge instead)
+  /// AND is NOT a vintage recovered vine (those show V Original badge)
+  bool get shouldShowNotDivineBadge {
+    return !isFromDivineServer && !hasProofMode && !isOriginalVine;
+  }
+
+  /// @deprecated Use shouldShowNotDivineBadge instead
+  /// Keeping for backward compatibility during migration
   bool get shouldShowOriginalBadge {
-    return isOriginalContent && !isOriginalVine && !hasProofMode;
+    return false; // No longer show misleading "Original" badge
   }
 
   /// Comparator: items with no loop count first (new vines),

@@ -668,74 +668,81 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
 
                     // UNIFIED structure - use Offstage instead of conditional
                     // widgets to maintain stable widget tree during scroll
-                    return SizedBox.expand(
-                      child: Container(
-                        color: Colors.black,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            // Video player - use Offstage to keep in tree
-                            Offstage(
-                              offstage: !value.isInitialized,
-                              child: FittedBox(
-                                fit: BoxFit.contain,
-                                alignment: Alignment.topCenter,
-                                child: SizedBox(
-                                  width: videoWidth,
-                                  height: videoHeight,
-                                  child: VideoPlayer(controller),
-                                ),
-                              ),
-                            ),
-                            // Loading indicator after 2s delay
-                            Offstage(
-                              offstage: !shouldShowIndicator,
-                              child: const Center(
-                                child: BrandedLoadingIndicator(size: 60),
-                              ),
-                            ),
-                            // Buffering indicator
-                            if (value.isInitialized && value.isBuffering)
-                              Positioned(
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                child: const LinearProgressIndicator(
-                                  minHeight: 12,
-                                  backgroundColor: Colors.transparent,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              ),
-                            // Play button when active and paused
-                            if (isActive &&
-                                value.isInitialized &&
-                                !value.isPlaying)
-                              Center(
-                                child: Container(
-                                  width: 80,
-                                  height: 80,
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.6),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Semantics(
-                                    identifier: 'play_button',
-                                    container: true,
-                                    explicitChildNodes: true,
-                                    label: 'Play video',
-                                    child: const Icon(
-                                      Icons.play_arrow,
-                                      size: 56,
-                                      color: Colors.white,
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        SizedBox.expand(
+                          child: Container(
+                            color: Colors.black,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                // Video player - use Offstage to keep in tree
+                                Offstage(
+                                  offstage: !value.isInitialized,
+                                  child: FittedBox(
+                                    fit: BoxFit.contain,
+                                    alignment: Alignment.center,
+                                    child: SizedBox(
+                                      width: videoWidth,
+                                      height: videoHeight,
+                                      child: VideoPlayer(controller),
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
+                                // Loading indicator after 2s delay
+                                Offstage(
+                                  offstage: !shouldShowIndicator,
+                                  child: const Center(
+                                    child: BrandedLoadingIndicator(size: 60),
+                                  ),
+                                ),
+                                // Buffering indicator
+                                if (value.isInitialized && value.isBuffering)
+                                  Positioned(
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: const LinearProgressIndicator(
+                                      minHeight: 12,
+                                      backgroundColor: Colors.transparent,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                // Play button when active and paused
+                                if (isActive &&
+                                    value.isInitialized &&
+                                    !value.isPlaying)
+                                  Center(
+                                    child: Container(
+                                      width: 80,
+                                      height: 80,
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.6,
+                                        ),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Semantics(
+                                        identifier: 'play_button',
+                                        container: true,
+                                        explicitChildNodes: true,
+                                        label: 'Play video',
+                                        child: const Icon(
+                                          Icons.play_arrow,
+                                          size: 56,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     );
                   },
                 );
@@ -751,7 +758,7 @@ class _VideoFeedItemState extends ConsumerState<VideoFeedItem> {
               },
             ),
 
-            // Video overlay with actions
+            // Video overlay with actions - positioned relative to full screen
             VideoOverlayActions(
               video: video,
               isVisible: overlayVisible,
@@ -869,6 +876,7 @@ class VideoOverlayActions extends ConsumerWidget {
     this.contextTitle,
     this.listSources,
     this.showListAttribution = false,
+    this.videoBottomOffset = 0,
   });
 
   final VideoEvent video;
@@ -882,6 +890,9 @@ class VideoOverlayActions extends ConsumerWidget {
 
   /// Whether to show the list attribution chip below the author info.
   final bool showListAttribution;
+
+  /// Extra offset from bottom for letterboxed videos (black bar height)
+  final double videoBottomOffset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1026,7 +1037,7 @@ class VideoOverlayActions extends ConsumerWidget {
           ),
         ),
         // No gradient - using text background opacity instead for cleaner appearance
-        // Video title overlay at bottom left
+        // Video title overlay at bottom left (always at screen bottom, above nav bar)
         // Only show if there's actual text content
         if (hasTextContent)
           Positioned(
@@ -1133,7 +1144,7 @@ class VideoOverlayActions extends ConsumerWidget {
               ),
             ),
           ),
-        // Action buttons at bottom right
+        // Action buttons at bottom right (always at screen bottom, above nav bar)
         Positioned(
           bottom: hasBottomNavigation ? 80 : 16,
           right: 16,

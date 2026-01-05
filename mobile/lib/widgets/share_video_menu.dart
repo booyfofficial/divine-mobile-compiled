@@ -2324,6 +2324,7 @@ class _EditVideoDialogState extends ConsumerState<_EditVideoDialog> {
   late TextEditingController _descriptionController;
   late TextEditingController _hashtagsController;
   bool _isUpdating = false;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -2391,16 +2392,35 @@ class _EditVideoDialogState extends ConsumerState<_EditVideoDialog> {
             'Note: Only metadata can be edited. Video content cannot be changed.',
             style: TextStyle(color: VineTheme.secondaryText, fontSize: 12),
           ),
+          const SizedBox(height: 16),
+          // Delete button
+          TextButton.icon(
+            onPressed: (_isUpdating || _isDeleting) ? null : _confirmDelete,
+            icon: _isDeleting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.red,
+                    ),
+                  )
+                : const Icon(Icons.delete_outline, color: Colors.red),
+            label: Text(
+              _isDeleting ? 'Deleting...' : 'Delete Video',
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
         ],
       ),
     ),
     actions: [
       TextButton(
-        onPressed: _isUpdating ? null : () => context.pop(),
+        onPressed: (_isUpdating || _isDeleting) ? null : () => context.pop(),
         child: const Text('Cancel'),
       ),
       TextButton(
-        onPressed: _isUpdating ? null : _updateVideo,
+        onPressed: (_isUpdating || _isDeleting) ? null : _updateVideo,
         child: _isUpdating
             ? const SizedBox(
                 width: 16,
@@ -2552,6 +2572,91 @@ class _EditVideoDialogState extends ConsumerState<_EditVideoDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to update video: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: VineTheme.cardBackground,
+        title: const Text(
+          'Delete Video?',
+          style: TextStyle(color: VineTheme.whiteText),
+        ),
+        content: const Text(
+          'This will send a deletion request to relays. '
+          'Note: Some relays may still have cached copies.',
+          style: TextStyle(color: VineTheme.secondaryText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteVideo();
+    }
+  }
+
+  Future<void> _deleteVideo() async {
+    setState(() => _isDeleting = true);
+
+    try {
+      final deletionService = await ref.read(
+        contentDeletionServiceProvider.future,
+      );
+
+      final result = await deletionService.quickDelete(
+        video: widget.video,
+        reason: DeleteReason.personalChoice,
+      );
+
+      if (result.success) {
+        Log.info(
+          'Video deleted successfully: ${widget.video.id}',
+          name: 'EditVideoDialog',
+          category: LogCategory.ui,
+        );
+
+        if (mounted) {
+          context.pop(); // Close edit dialog
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Video deletion requested'),
+              backgroundColor: VineTheme.vineGreen,
+            ),
+          );
+        }
+      } else {
+        throw Exception(result.error ?? 'Unknown error');
+      }
+    } catch (e) {
+      Log.error(
+        'Failed to delete video: $e',
+        name: 'EditVideoDialog',
+        category: LogCategory.ui,
+      );
+
+      if (mounted) {
+        setState(() => _isDeleting = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete video: $e'),
             backgroundColor: Colors.red,
           ),
         );

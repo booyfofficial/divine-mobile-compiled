@@ -1580,41 +1580,8 @@ class VideoOverlayActions extends ConsumerWidget {
       builder: (context) => ShareVideoMenu(video: video),
     );
 
-    // Resume video after share menu closes if it was playing
-    if (wasPaused) {
-      try {
-        final controllerParams = VideoControllerParams(
-          videoId: video.id,
-          videoUrl: video.videoUrl!,
-          videoEvent: video,
-        );
-        final controller = ref.read(
-          individualVideoControllerProvider(controllerParams),
-        );
-        if (isActive &&
-            controller.value.isInitialized &&
-            !controller.value.isPlaying) {
-          final resumed = await safePlay(controller, video.id);
-          if (resumed) {
-            Log.info(
-              '🎬 Resumed video after share menu closed',
-              name: 'VideoFeedItem',
-              category: LogCategory.ui,
-            );
-          }
-        }
-      } catch (e) {
-        final errorStr = e.toString().toLowerCase();
-        if (!errorStr.contains('no active player') &&
-            !errorStr.contains('disposed')) {
-          Log.error(
-            'Failed to resume video after share menu: $e',
-            name: 'VideoFeedItem',
-            category: LogCategory.ui,
-          );
-        }
-      }
-    }
+    // Video stays paused after dialog closes - user must explicitly play
+    // or navigate to a new video to trigger auto-play
   }
 
   Future<void> _showBadgeExplanationModal(
@@ -1664,44 +1631,8 @@ class VideoOverlayActions extends ConsumerWidget {
       builder: (context) => BadgeExplanationModal(video: video),
     );
 
-    // Resume video after modal closes if it was playing
-    if (wasPaused) {
-      try {
-        final controllerParams = VideoControllerParams(
-          videoId: video.id,
-          videoUrl: video.videoUrl!,
-          videoEvent: video,
-        );
-        final controller = ref.read(
-          individualVideoControllerProvider(controllerParams),
-        );
-        // Only resume if video is still active (not scrolled away)
-        if (isActive &&
-            controller.value.isInitialized &&
-            !controller.value.isPlaying) {
-          // Use safePlay to handle disposed controller gracefully
-          final resumed = await safePlay(controller, video.id);
-          if (resumed) {
-            Log.info(
-              '🎬 Resumed video after badge modal closed',
-              name: 'VideoFeedItem',
-              category: LogCategory.ui,
-            );
-          }
-        }
-      } catch (e) {
-        // Ignore disposal errors
-        final errorStr = e.toString().toLowerCase();
-        if (!errorStr.contains('no active player') &&
-            !errorStr.contains('disposed')) {
-          Log.error(
-            'Failed to resume video after modal: $e',
-            name: 'VideoFeedItem',
-            category: LogCategory.ui,
-          );
-        }
-      }
-    }
+    // Video stays paused after dialog closes - user must explicitly play
+    // or navigate to a new video to trigger auto-play
   }
 }
 

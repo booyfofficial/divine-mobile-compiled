@@ -26,6 +26,7 @@ enum RouteType {
   developerOptions, // Developer options (hidden, unlock by tapping version 7x)
   following, // Following list screen
   followers, // Followers list screen
+  videoFeed, // Fullscreen video feed (pushed from grids)
   curatedList, // Curated video list screen (NIP-51 kind 30005)
   sound, // Sound detail screen for audio reuse
 }
@@ -216,6 +217,8 @@ RouteContext parseRoute(String path) {
       final followersPubkey = Uri.decodeComponent(segments[1]);
       return RouteContext(type: RouteType.followers, npub: followersPubkey);
 
+    case 'video-feed':
+      return const RouteContext(type: RouteType.videoFeed);
     case 'list':
       if (segments.length < 2) {
         return const RouteContext(type: RouteType.explore);
@@ -352,6 +355,8 @@ String buildRoute(RouteContext context) {
     case RouteType.followers:
       return '/followers/${context.npub ?? ''}';
 
+    case RouteType.videoFeed:
+      return '/video-feed';
     case RouteType.curatedList:
       final listId = Uri.encodeComponent(context.listId ?? '');
       return '/list/$listId';

@@ -1,1 +1,31 @@
 flutter build ipa --no-codesign
+
+name: Build iOS IPA
+on: [workflow_dispatch, push]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build IPA
+        # This builds the file but doesn't "save" it yet
+        run: flutter build ipa --no-codesign
+
+      # THIS IS THE MISSING STEP:
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: divine-ipa-file
+          # Flutter saves the IPA in this specific folder:
+          path: build/ios/ipa/*.ipa

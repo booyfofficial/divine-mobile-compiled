@@ -1,5 +1,4 @@
 flutter build ipa --no-codesign
-
 name: Build iOS IPA
 on: [workflow_dispatch, push]
 
